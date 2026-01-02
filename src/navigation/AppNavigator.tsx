@@ -23,7 +23,8 @@ import BillSuccessScreen from '../screens/BillSuccessScreen';
 import AdminPinScreen from '../screens/AdminPinScreen';
 import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import ItemManagementScreen from '../screens/ItemManagementScreen';
-import AddEditItemScreen from '../screens/AddEditItemScreen';
+import AddItemScreen from '../screens/AddItemScreen';
+import EditItemScreen from '../screens/EditItemScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -116,10 +117,15 @@ const AppNavigator: React.FC = () => {
         component={ItemManagementScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen
-        name="AddEditItem"
-        component={AddEditItemScreen}
-        options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
+      <Stack.Screen 
+        name="AddItem" 
+        component={AddItemScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="EditItem" 
+        component={EditItemScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );

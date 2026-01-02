@@ -47,7 +47,7 @@ export type RootStackParamList = {
   BusinessSetupStep2: { businessData: any };
   BusinessSetupStep3: { businessData: any };
   CreatingBusiness: { businessData: any };
-  SetupSuccess: undefined;
+  SetupSuccess: { businessName?: string };
   SetupFailure: { error: string };
   ModeSelection: undefined;
   JoinBusiness: undefined;
@@ -61,5 +61,6 @@ export type RootStackParamList = {
   AdminPin: undefined;
   AdminDashboard: undefined;
   ItemManagement: undefined;
-  AddEditItem: { item?: MenuItem };
+  AddItem: undefined;
+  EditItem: { item: MenuItem };
 };

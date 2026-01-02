@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, MenuItem } from '../types/business.types';
+import Icon from 'react-native-vector-icons/Ionicons';
 
 type ItemManagementScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ItemManagement'>;
@@ -134,11 +135,11 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
   };
 
   const handleEditItem = (item: MenuItem) => {
-    navigation.navigate('AddEditItem', { item });
+    navigation.navigate('EditItem', { item });
   };
 
   const handleAddItem = () => {
-    navigation.navigate('AddEditItem', {});
+    navigation.navigate('AddItem');
   };
 
   return (
@@ -195,7 +196,7 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
         ]}
       >
         <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Icon name="search-outline" size={20} color="#999999" style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search items..."
@@ -278,7 +279,7 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
               style={styles.itemCard}
             >
               <View style={styles.itemImage}>
-                <Text style={styles.imagePlaceholder}>🍽️</Text>
+                <Icon name="restaurant-outline" size={32} color="#C62828" />
               </View>
 
               <View style={styles.itemInfo}>
@@ -287,8 +288,9 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
                   <TouchableOpacity
                     onPress={() => handleEditItem(item)}
                     activeOpacity={0.7}
+                    style={styles.editButton}
                   >
-                    <Text style={styles.editIcon}>✏️</Text>
+                    <Icon name="pencil-outline" size={20} color="#C62828" />
                   </TouchableOpacity>
                 </View>
 
@@ -300,7 +302,7 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
                   onPress={() => handleDeleteItem(item.id)}
                   activeOpacity={0.7}
                 >
-                  <Text style={styles.deleteIcon}>🗑️</Text>
+                  <Icon name="trash-outline" size={16} color="#EF5350" />
                   <Text style={styles.deleteText}>Delete Item</Text>
                 </TouchableOpacity>
               </View>
@@ -378,7 +380,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   searchIcon: {
-    fontSize: 18,
+    marginRight: 4,
   },
   searchInput: {
     flex: 1,
@@ -442,9 +444,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  imagePlaceholder: {
-    fontSize: 32,
-  },
   itemInfo: {
     flex: 1,
   },
@@ -460,8 +459,8 @@ const styles = StyleSheet.create({
     color: '#333333',
     flex: 1,
   },
-  editIcon: {
-    fontSize: 18,
+  editButton: {
+    padding: 4,
   },
   itemPrice: {
     fontSize: 16,
@@ -477,9 +476,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  deleteIcon: {
-    fontSize: 16,
   },
   deleteText: {
     fontSize: 14,

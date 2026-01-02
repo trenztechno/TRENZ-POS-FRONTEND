@@ -8,28 +8,22 @@ import {
   StatusBar,
   ScrollView,
   TextInput,
-  Image,
   Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList, MenuItem } from '../types/business.types';
+import { RootStackParamList } from '../types/business.types';
 
-type AddEditItemScreenProps = {
-  navigation: NativeStackNavigationProp<RootStackParamList, 'AddEditItem'>;
-  route: RouteProp<RootStackParamList, 'AddEditItem'>;
+type AddItemScreenProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'AddItem'>;
 };
 
 const CATEGORIES = ['Rice & Dosa', 'Chapati & Curry', 'Tea & Coffee', 'Ice Cream'];
 
-const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route }) => {
-  const editItem = route.params?.item;
-  const isEditing = !!editItem;
-
-  const [itemName, setItemName] = useState(editItem?.name || '');
-  const [price, setPrice] = useState(editItem?.price?.toString() || '');
-  const [category, setCategory] = useState(editItem?.category || CATEGORIES[0]);
-  const [imageUrl, setImageUrl] = useState(editItem?.image || '');
+const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
+  const [itemName, setItemName] = useState('');
+  const [price, setPrice] = useState('');
+  const [category, setCategory] = useState(CATEGORIES[0]);
+  const [imageUrl, setImageUrl] = useState('');
   const [useGlobalGST, setUseGlobalGST] = useState(true);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
@@ -64,11 +58,11 @@ const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route
     }
 
     // Save logic here
-    console.log('Saving item:', { itemName, price, category, imageUrl, useGlobalGST });
+    console.log('Adding item:', { itemName, price, category, imageUrl, useGlobalGST });
     
     Alert.alert(
       'Success',
-      `Item ${isEditing ? 'updated' : 'added'} successfully!`,
+      'Item added successfully!',
       [
         {
           text: 'OK',
@@ -111,19 +105,14 @@ const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route
           },
         ]}
       >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backArrow}>←</Text>
           <Text style={styles.backText}>Back</Text>
         </TouchableOpacity>
-
-        <Text style={styles.title}>{isEditing ? 'Edit Item' : 'Add Item'}</Text>
+        <Text style={styles.headerTitle}>Add Item</Text>
       </Animated.View>
 
-      {/* Form */}
+      {/* Scrollable Form */}
       <Animated.View
         style={[
           styles.formContainer,
@@ -133,53 +122,51 @@ const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route
               {
                 translateY: formAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [30, 0],
+                  outputRange: [20, 0],
                 }),
               },
             ],
           },
         ]}
       >
-        <ScrollView
+        <ScrollView 
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.form}
         >
-          {/* Image Upload */}
-          <View style={styles.field}>
+          {/* Item Image */}
+          <View style={styles.fieldContainer}>
             <Text style={styles.label}>Item Image</Text>
-            <TouchableOpacity
-              style={styles.imageUpload}
-              onPress={handleImageUpload}
-              activeOpacity={0.7}
-            >
-              {imageUrl ? (
-                <Image source={{ uri: imageUrl }} style={styles.uploadedImage} />
-              ) : (
-                <>
-                  <View style={styles.uploadIcon}>
-                    <Text style={styles.uploadIconText}>📷</Text>
-                  </View>
-                  <Text style={styles.uploadText}>Upload Item Image</Text>
-                  <Text style={styles.uploadSubtext}>Tap to browse files</Text>
-                </>
-              )}
+            <TouchableOpacity style={styles.imageUploadContainer} onPress={handleImageUpload}>
+              <View style={styles.imageUploadInner}>
+                {/* Upload Icon */}
+                <View style={styles.uploadIcon}>
+                  {/* Camera Icon using lines */}
+                  <View style={styles.cameraTop} />
+                  <View style={styles.cameraBody} />
+                  <View style={styles.cameraLens} />
+                </View>
+                <Text style={styles.uploadText}>Upload Item Image</Text>
+                <Text style={styles.browseText}>Tap to browse files</Text>
+              </View>
+              
+              {/* URL Input */}
+              <TextInput
+                style={styles.urlInput}
+                placeholder="Or paste image URL"
+                placeholderTextColor="#999999"
+                value={imageUrl}
+                onChangeText={setImageUrl}
+              />
             </TouchableOpacity>
-
-            <TextInput
-              style={styles.urlInput}
-              placeholder="Or paste image URL"
-              placeholderTextColor="#999999"
-              value={imageUrl}
-              onChangeText={setImageUrl}
-            />
           </View>
 
           {/* Item Name */}
-          <View style={styles.field}>
+          <View style={styles.fieldContainer}>
             <Text style={styles.label}>Item Name</Text>
             <TextInput
-              style={styles.input}
-              placeholder="e.g., Idli"
+              style={styles.textInput}
+              placeholder="Idli"
               placeholderTextColor="#999999"
               value={itemName}
               onChangeText={setItemName}
@@ -187,15 +174,15 @@ const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route
           </View>
 
           {/* Price */}
-          <View style={styles.field}>
+          <View style={styles.fieldContainer}>
             <Text style={styles.label}>Price</Text>
-            <View style={styles.priceInput}>
+            <View style={styles.priceInputContainer}>
               <Text style={styles.rupeeSymbol}>₹</Text>
               <TextInput
-                style={styles.priceField}
+                style={styles.priceInput}
                 placeholder="40"
                 placeholderTextColor="#999999"
-                keyboardType="decimal-pad"
+                keyboardType="numeric"
                 value={price}
                 onChangeText={setPrice}
               />
@@ -203,17 +190,15 @@ const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route
           </View>
 
           {/* Category */}
-          <View style={styles.field}>
+          <View style={styles.fieldContainer}>
             <Text style={styles.label}>Category</Text>
             <TouchableOpacity
               style={styles.dropdown}
               onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
-              activeOpacity={0.7}
             >
               <Text style={styles.dropdownText}>{category}</Text>
-              <Text style={styles.dropdownArrow}>{showCategoryDropdown ? '▲' : '▼'}</Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
             </TouchableOpacity>
-
             {showCategoryDropdown && (
               <View style={styles.dropdownMenu}>
                 {CATEGORIES.map((cat) => (
@@ -224,7 +209,6 @@ const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route
                       setCategory(cat);
                       setShowCategoryDropdown(false);
                     }}
-                    activeOpacity={0.7}
                   >
                     <Text style={styles.dropdownItemText}>{cat}</Text>
                   </TouchableOpacity>
@@ -234,62 +218,51 @@ const AddEditItemScreen: React.FC<AddEditItemScreenProps> = ({ navigation, route
           </View>
 
           {/* GST Settings */}
-          <View style={styles.field}>
+          <View style={styles.fieldContainer}>
             <Text style={styles.label}>GST Settings</Text>
+            <View style={styles.gstContainer}>
+              {/* Use Global GST */}
+              <TouchableOpacity
+                style={[
+                  styles.gstButton,
+                  useGlobalGST && styles.gstButtonSelected,
+                ]}
+                onPress={() => setUseGlobalGST(true)}
+              >
+                <View style={[styles.radioOuter, useGlobalGST && styles.radioOuterSelected]}>
+                  {useGlobalGST && <View style={styles.radioInner} />}
+                </View>
+                <View style={styles.gstTextContainer}>
+                  <Text style={styles.gstTitle}>Use Global GST</Text>
+                  <Text style={styles.gstSubtitle}>Apply business-wide GST rate</Text>
+                </View>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[
-                styles.gstOption,
-                useGlobalGST && styles.gstOptionActive,
-              ]}
-              onPress={() => setUseGlobalGST(true)}
-              activeOpacity={0.7}
-            >
-              <View style={[
-                styles.radio,
-                useGlobalGST && styles.radioActive,
-              ]}>
-                {useGlobalGST && <View style={styles.radioDot} />}
-              </View>
-              <View style={styles.gstText}>
-                <Text style={styles.gstTitle}>Use Global GST</Text>
-                <Text style={styles.gstSubtitle}>Apply business-wide GST rate</Text>
-              </View>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.gstOption,
-                !useGlobalGST && styles.gstOptionActive,
-              ]}
-              onPress={() => setUseGlobalGST(false)}
-              activeOpacity={0.7}
-            >
-              <View style={[
-                styles.radio,
-                !useGlobalGST && styles.radioActive,
-              ]}>
-                {!useGlobalGST && <View style={styles.radioDot} />}
-              </View>
-              <View style={styles.gstText}>
-                <Text style={styles.gstTitle}>Set Item-level GST</Text>
-                <Text style={styles.gstSubtitle}>Custom GST for this item only</Text>
-              </View>
-            </TouchableOpacity>
+              {/* Set Item-level GST */}
+              <TouchableOpacity
+                style={[
+                  styles.gstButton,
+                  !useGlobalGST && styles.gstButtonSelected,
+                ]}
+                onPress={() => setUseGlobalGST(false)}
+              >
+                <View style={[styles.radioOuter, !useGlobalGST && styles.radioOuterSelected]}>
+                  {!useGlobalGST && <View style={styles.radioInner} />}
+                </View>
+                <View style={styles.gstTextContainer}>
+                  <Text style={styles.gstTitle}>Set Item-level GST</Text>
+                  <Text style={styles.gstSubtitle}>Custom GST for this item only</Text>
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <View style={{ height: 100 }} />
         </ScrollView>
       </Animated.View>
 
-      {/* Footer */}
+      {/* Footer - Save Button */}
       <View style={styles.footer}>
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={handleSave}
-          activeOpacity={0.9}
-        >
-          <Text style={styles.saveButtonText}>Save Item</Text>
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>Add Item</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -302,134 +275,195 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 48,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 0.6,
     borderBottomColor: '#E0E0E0',
+    paddingTop: 48,
+    paddingHorizontal: 20,
+    paddingBottom: 16.6,
   },
   backButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 12,
   },
   backArrow: {
     fontSize: 20,
+    lineHeight: 28,
     fontWeight: '600',
     color: '#C62828',
+    letterSpacing: -0.45,
   },
   backText: {
     fontSize: 16,
+    lineHeight: 24,
     fontWeight: '600',
     color: '#C62828',
+    letterSpacing: -0.31,
   },
-  title: {
+  headerTitle: {
     fontSize: 28,
+    lineHeight: 42,
     fontWeight: '700',
     color: '#333333',
+    letterSpacing: 0.38,
+    marginTop: 12,
   },
   formContainer: {
     flex: 1,
+    paddingTop: 24,
   },
-  form: {
-    padding: 20,
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 20,
   },
-  field: {
-    marginBottom: 24,
+  scrollContent: {
+    gap: 24,
+    paddingBottom: 140,
+  },
+  fieldContainer: {
+    gap: 12,
   },
   label: {
     fontSize: 14,
+    lineHeight: 21,
     fontWeight: '500',
     color: '#333333',
-    marginBottom: 12,
+    letterSpacing: -0.15,
   },
-  imageUpload: {
+  imageUploadContainer: {
+    gap: 12,
+  },
+  imageUploadInner: {
     height: 192,
     backgroundColor: '#F5F5F5',
-    borderRadius: 16,
-    borderWidth: 2,
+    borderWidth: 1.8,
     borderColor: '#E0E0E0',
-    borderStyle: 'dashed',
+    borderRadius: 16.4,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
-  },
-  uploadedImage: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 16,
+    borderStyle: 'dashed',
   },
   uploadIcon: {
     width: 64,
     height: 64,
+    backgroundColor: '#E0E0E0',
     borderRadius: 32,
-    backgroundColor: '#F5F5F5',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  uploadIconText: {
-    fontSize: 32,
+  cameraTop: {
+    width: 10,
+    height: 2,
+    backgroundColor: '#999999',
+    position: 'absolute',
+    top: 16,
+  },
+  cameraBody: {
+    width: 18,
+    height: 12,
+    borderWidth: 2,
+    borderColor: '#999999',
+    borderRadius: 2,
+    position: 'absolute',
+    top: 22,
+  },
+  cameraLens: {
+    width: 6,
+    height: 6,
+    borderWidth: 2,
+    borderColor: '#999999',
+    borderRadius: 3,
+    position: 'absolute',
+    top: 25,
   },
   uploadText: {
     fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
     color: '#333333',
-    marginBottom: 4,
+    letterSpacing: -0.31,
+    textAlign: 'center',
   },
-  uploadSubtext: {
+  browseText: {
     fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
     color: '#999999',
+    letterSpacing: -0.31,
+    textAlign: 'center',
+    marginTop: 8,
   },
   urlInput: {
-    borderWidth: 1,
+    height: 49.2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.6,
     borderColor: '#E0E0E0',
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
+    lineHeight: 19,
+    letterSpacing: -0.31,
     color: '#333333',
   },
-  input: {
-    borderWidth: 1,
+  textInput: {
+    height: 49.2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.6,
     borderColor: '#E0E0E0',
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 16,
+    lineHeight: 19,
+    letterSpacing: -0.31,
     color: '#333333',
   },
-  priceInput: {
+  priceInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
+    height: 49.2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.6,
     borderColor: '#E0E0E0',
     borderRadius: 10,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingLeft: 16,
   },
   rupeeSymbol: {
     fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
     color: '#333333',
+    letterSpacing: -0.31,
     marginRight: 8,
   },
-  priceField: {
+  priceInput: {
     flex: 1,
+    height: '100%',
     fontSize: 16,
+    lineHeight: 19,
+    letterSpacing: -0.31,
     color: '#333333',
+    paddingRight: 16,
   },
   dropdown: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
+    height: 49.2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.6,
     borderColor: '#E0E0E0',
     borderRadius: 10,
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   dropdownText: {
     fontSize: 16,
+    lineHeight: 19,
+    letterSpacing: -0.31,
     color: '#333333',
   },
   dropdownArrow: {
@@ -437,11 +471,11 @@ const styles = StyleSheet.create({
     color: '#999999',
   },
   dropdownMenu: {
-    marginTop: 8,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: 0.6,
     borderColor: '#E0E0E0',
     borderRadius: 10,
+    marginTop: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
@@ -451,79 +485,94 @@ const styles = StyleSheet.create({
   dropdownItem: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0.6,
     borderBottomColor: '#F5F5F5',
   },
   dropdownItemText: {
     fontSize: 16,
+    lineHeight: 19,
+    letterSpacing: -0.31,
     color: '#333333',
   },
-  gstOption: {
+  gstContainer: {
+    gap: 12,
+  },
+  gstButton: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderWidth: 1,
+    gap: 12,
+    height: 73.2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.6,
     borderColor: '#E0E0E0',
     borderRadius: 10,
-    marginBottom: 12,
-    gap: 12,
   },
-  gstOptionActive: {
+  gstButtonSelected: {
     backgroundColor: '#FFF5F5',
     borderColor: '#C62828',
   },
-  radio: {
+  radioOuter: {
     width: 20,
     height: 20,
     borderRadius: 10,
-    borderWidth: 2,
+    borderWidth: 1.8,
     borderColor: '#E0E0E0',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  radioActive: {
+  radioOuterSelected: {
     borderColor: '#C62828',
   },
-  radioDot: {
+  radioInner: {
     width: 12,
     height: 12,
     borderRadius: 6,
     backgroundColor: '#C62828',
   },
-  gstText: {
+  gstTextContainer: {
     flex: 1,
   },
   gstTitle: {
     fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
     color: '#333333',
-    marginBottom: 2,
+    letterSpacing: -0.31,
   },
   gstSubtitle: {
     fontSize: 16,
+    lineHeight: 24,
+    fontWeight: '400',
     color: '#999999',
+    letterSpacing: -0.31,
   },
   footer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
+    borderTopWidth: 0.6,
     borderTopColor: '#E0E0E0',
-    padding: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16.6,
+    paddingBottom: 32,
   },
   saveButton: {
+    height: 52,
     backgroundColor: '#C62828',
-    borderRadius: 16,
-    paddingVertical: 16,
+    borderRadius: 16.4,
+    justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   saveButtonText: {
     fontSize: 16,
+    lineHeight: 24,
     fontWeight: '600',
     color: '#FFFFFF',
+    letterSpacing: -0.31,
   },
 });
 
-export default AddEditItemScreen;
+export default AddItemScreen;

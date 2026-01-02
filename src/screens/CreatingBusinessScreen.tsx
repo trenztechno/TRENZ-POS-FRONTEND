@@ -94,7 +94,7 @@ const CreatingBusinessScreen: React.FC<CreatingBusinessScreenProps> = ({
     // Navigate to success screen after completion
     const completeTimeout = setTimeout(() => {
       console.log('Business created:', businessData);
-      navigation.replace('Success', {
+      navigation.replace('SetupSuccess', {
         businessName: businessData.businessName,
       });
     }, 3500);

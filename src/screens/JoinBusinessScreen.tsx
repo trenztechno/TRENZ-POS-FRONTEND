@@ -158,7 +158,7 @@ const JoinBusinessScreen: React.FC<JoinBusinessScreenProps> = ({navigation}) => 
   };
 
   const handleCreateNew = () => {
-    navigation.navigate('BusinessSetupStep1');
+    navigation.navigate('BusinessSetup1');
   };
 
   return (

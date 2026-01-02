@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Animated,
   StatusBar,
+  Image,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
@@ -17,49 +18,14 @@ type ModeSelectionScreenProps = {
 const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({
   navigation,
 }) => {
-  // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
-  const card1Scale = useRef(new Animated.Value(0.9)).current;
-  const card2Scale = useRef(new Animated.Value(0.9)).current;
-  const card3Scale = useRef(new Animated.Value(0.9)).current;
 
   useEffect(() => {
-    // Staggered animation for cards
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
-
-    // Staggered scale animations
-    Animated.stagger(150, [
-      Animated.spring(card1Scale, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.spring(card2Scale, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-      Animated.spring(card3Scale, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const handleBillingMode = () => {
@@ -76,109 +42,57 @@ const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#C62828" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Header */}
-      <View style={styles.header}>
-        <Animated.View
-          style={{
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          }}
-        >
-          <Text style={styles.businessName}>Saravaan's Tiffen Centre</Text>
-          <Text style={styles.subtitle}>Select your mode to continue</Text>
-        </Animated.View>
-      </View>
+      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+        {/* Title */}
+        <Text style={styles.title}>Select Mode</Text>
 
-      {/* Mode Cards */}
-      <View style={styles.cardsContainer}>
-        {/* Billing Mode */}
-        <Animated.View
-          style={[
-            styles.cardWrapper,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: card1Scale }],
-            },
-          ]}
+        {/* Billing Mode - Large Card */}
+        <TouchableOpacity
+          style={styles.largeCard}
+          onPress={handleBillingMode}
+          activeOpacity={0.9}
         >
-          <TouchableOpacity
-            style={[styles.card, styles.billingCard]}
-            onPress={handleBillingMode}
-            activeOpacity={0.9}
-          >
-            <View style={styles.cardIcon}>
-              <Text style={styles.iconText}>💳</Text>
+          <View style={styles.imageContainer}>
+            {/* Placeholder for billing image */}
+            <View style={styles.imagePlaceholder}>
+              <Text style={styles.placeholderIcon}>🧾</Text>
             </View>
-            <Text style={styles.cardTitle}>Billing Mode</Text>
-            <Text style={styles.cardDescription}>
-              Quick checkout and bill generation
-            </Text>
-          </TouchableOpacity>
-        </Animated.View>
+          </View>
 
-        {/* Admin Mode */}
-        <Animated.View
-          style={[
-            styles.cardWrapper,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: card2Scale }],
-            },
-          ]}
-        >
-          <TouchableOpacity
-            style={[styles.card, styles.adminCard]}
-            onPress={handleAdminMode}
-            activeOpacity={0.9}
-          >
-            <View style={styles.cardIcon}>
-              <Text style={styles.iconText}>⚙️</Text>
-            </View>
-            <Text style={styles.cardTitle}>Admin Mode</Text>
-            <Text style={styles.cardDescription}>
-              Manage items, settings, and reports
+          <View style={styles.largeCardContent}>
+            <Text style={styles.largeCardTitle}>Billing Mode</Text>
+            <Text style={styles.largeCardSubtitle}>
+              Create bills and process sales
             </Text>
-          </TouchableOpacity>
-        </Animated.View>
+          </View>
+        </TouchableOpacity>
 
-        {/* Dashboard Mode */}
-        <Animated.View
-          style={[
-            styles.cardWrapper,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: card3Scale }],
-            },
-          ]}
-        >
+        {/* Small Cards Container */}
+        <View style={styles.smallCardsContainer}>
+          {/* Dashboard Mode */}
           <TouchableOpacity
-            style={[styles.card, styles.dashboardCard]}
+            style={styles.smallCard}
             onPress={handleDashboardMode}
             activeOpacity={0.9}
           >
-            <View style={styles.cardIcon}>
-              <Text style={styles.iconText}>📊</Text>
-            </View>
-            <Text style={styles.cardTitle}>Dashboard</Text>
-            <Text style={styles.cardDescription}>
-              View sales analytics and insights
+            <Text style={styles.smallCardTitle}>Dashboard Mode</Text>
+            <Text style={styles.smallCardSubtitle}>View sales and insights</Text>
+          </TouchableOpacity>
+
+          {/* Admin Mode */}
+          <TouchableOpacity
+            style={styles.smallCard}
+            onPress={handleAdminMode}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.smallCardTitle}>Admin Mode</Text>
+            <Text style={styles.smallCardSubtitle}>
+              Manage settings and inventory
             </Text>
           </TouchableOpacity>
-        </Animated.View>
-      </View>
-
-      {/* Footer */}
-      <Animated.View
-        style={[
-          styles.footer,
-          {
-            opacity: fadeAnim,
-          },
-        ]}
-      >
-        <Text style={styles.footerText}>Powered by TrenzTechnologies</Text>
+        </View>
       </Animated.View>
     </View>
   );
@@ -189,83 +103,94 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
-  header: {
-    backgroundColor: '#C62828',
-    paddingTop: 60,
-    paddingBottom: 40,
-    paddingHorizontal: 24,
+  content: {
+    flex: 1,
+    paddingHorizontal: 16,
   },
-  businessName: {
+  title: {
     fontSize: 28,
     fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
+    color: '#333333',
+    marginTop: 86,
+    marginBottom: 32,
+    letterSpacing: 0.382812,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.9,
-  },
-  cardsContainer: {
-    flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    gap: 16,
-  },
-  cardWrapper: {
-    flex: 1,
-  },
-  card: {
-    flex: 1,
-    borderRadius: 24,
-    padding: 24,
-    justifyContent: 'center',
+  largeCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.8,
+    borderColor: '#E0E0E0',
+    borderRadius: 16,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 4,
+    overflow: 'hidden',
   },
-  billingCard: {
-    backgroundColor: '#4CAF50',
-  },
-  adminCard: {
-    backgroundColor: '#2196F3',
-  },
-  dashboardCard: {
-    backgroundColor: '#FF9800',
-  },
-  cardIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  imageContainer: {
+    width: '100%',
+    height: 192,
+    backgroundColor: '#F5F5F5',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  iconText: {
-    fontSize: 36,
-  },
-  cardTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 8,
-  },
-  cardDescription: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    lineHeight: 22,
-  },
-  footer: {
-    paddingVertical: 24,
+  imagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#F5F5F5',
   },
-  footerText: {
-    fontSize: 14,
+  placeholderIcon: {
+    fontSize: 64,
+    opacity: 0.5,
+  },
+  largeCardContent: {
+    padding: 24,
+  },
+  largeCardTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 4,
+    letterSpacing: -0.257812,
+  },
+  largeCardSubtitle: {
+    fontSize: 16,
+    fontWeight: '400',
     color: '#999999',
+    letterSpacing: -0.3125,
+  },
+  smallCardsContainer: {
+    gap: 16,
+  },
+  smallCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.8,
+    borderColor: '#E0E0E0',
+    borderRadius: 16,
+    padding: 22,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  smallCardTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 4,
+    letterSpacing: -0.439453,
+  },
+  smallCardSubtitle: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#999999',
+    letterSpacing: -0.3125,
   },
 });
 

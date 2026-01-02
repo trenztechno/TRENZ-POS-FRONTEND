@@ -90,7 +90,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
   }, []);
 
   const handleCreateBusiness = () => {
-    navigation.navigate('BusinessSetupStep1');
+    navigation.navigate('BusinessSetup1');
   };
 
   const handleJoinBusiness = () => {
