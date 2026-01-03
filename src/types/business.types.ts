@@ -63,4 +63,19 @@ export type RootStackParamList = {
   ItemManagement: undefined;
   AddItem: undefined;
   EditItem: { item: MenuItem };
+  
+  // Bill Format Options (NEW)
+  BillFormat: undefined;
+  BusinessDetails: undefined;
+  InvoiceFormat: undefined;
+  InvoiceStructure: undefined;
+  LogoUpload: undefined;
+  FooterNote: undefined;
+  BillNumbering: undefined;
+  
+  // Other Admin Options (NEW)
+  GSTSettings: undefined;
+  PrinterSetup: undefined;
+  AddPeople: undefined;
+  BackupData: undefined;
 };

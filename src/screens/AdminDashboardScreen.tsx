@@ -23,6 +23,9 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
   const card1Anim = useRef(new Animated.Value(0)).current;
   const card2Anim = useRef(new Animated.Value(0)).current;
   const card3Anim = useRef(new Animated.Value(0)).current;
+  const card4Anim = useRef(new Animated.Value(0)).current;
+  const card5Anim = useRef(new Animated.Value(0)).current;
+  const card6Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.stagger(100, [
@@ -56,6 +59,21 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
         duration: 300,
         useNativeDriver: true,
       }),
+      Animated.timing(card4Anim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(card5Anim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(card6Anim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
     ]).start();
   }, []);
 
@@ -65,6 +83,10 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
 
   const handleItemManagement = () => {
     navigation.navigate('ItemManagement');
+  };
+
+  const handleBillFormat = () => {
+    navigation.navigate('BillFormat');
   };
 
   return (
@@ -159,7 +181,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           <Text style={styles.settingsTitle}>Settings</Text>
         </Animated.View>
 
-        {/* Setting Cards */}
+        {/* 1. Item Management */}
         <Animated.View
           style={[
             styles.settingCard,
@@ -192,6 +214,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           </TouchableOpacity>
         </Animated.View>
 
+        {/* 2. GST Settings */}
         <Animated.View
           style={[
             styles.settingCard,
@@ -211,9 +234,9 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           <TouchableOpacity
             style={styles.cardContent}
             activeOpacity={0.7}
-            onPress={() => console.log('GST Settings')}
+            onPress={() => console.log('GST Settings - Coming Soon')}
           >
-            <View style={[styles.iconContainer, { backgroundColor: '#FFF9E6' }]}>
+            <View style={[styles.iconContainer, { backgroundColor: '#F1F8E9' }]}>
               <Text style={styles.iconText}>📊</Text>
             </View>
             <View style={styles.cardText}>
@@ -224,6 +247,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           </TouchableOpacity>
         </Animated.View>
 
+        {/* 3. Bill Format */}
         <Animated.View
           style={[
             styles.settingCard,
@@ -243,14 +267,113 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           <TouchableOpacity
             style={styles.cardContent}
             activeOpacity={0.7}
-            onPress={() => console.log('Bill Format')}
+            onPress={handleBillFormat}
           >
-            <View style={[styles.iconContainer, { backgroundColor: '#F0F0F0' }]}>
+            <View style={[styles.iconContainer, { backgroundColor: '#F5F5F5' }]}>
               <Text style={styles.iconText}>📄</Text>
             </View>
             <View style={styles.cardText}>
               <Text style={styles.cardTitle}>Bill Format</Text>
               <Text style={styles.cardSubtitle}>Customize bill layout</Text>
+            </View>
+            <Text style={styles.arrow}>→</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* 4. Printer Setup */}
+        <Animated.View
+          style={[
+            styles.settingCard,
+            {
+              opacity: card4Anim,
+              transform: [
+                {
+                  translateX: card4Anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.cardContent}
+            activeOpacity={0.7}
+            onPress={() => console.log('Printer Setup - Coming Soon')}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: '#EEEEEE' }]}>
+              <Text style={styles.iconText}>🖨️</Text>
+            </View>
+            <View style={styles.cardText}>
+              <Text style={styles.cardTitle}>Printer Setup</Text>
+              <Text style={styles.cardSubtitle}>Configure printing options</Text>
+            </View>
+            <Text style={styles.arrow}>→</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* 5. Add People */}
+        <Animated.View
+          style={[
+            styles.settingCard,
+            {
+              opacity: card5Anim,
+              transform: [
+                {
+                  translateX: card5Anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.cardContent}
+            activeOpacity={0.7}
+            onPress={() => console.log('Add People - Coming Soon')}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
+              <Text style={styles.iconText}>👥</Text>
+            </View>
+            <View style={styles.cardText}>
+              <Text style={styles.cardTitle}>Add People</Text>
+              <Text style={styles.cardSubtitle}>Manage users and permissions</Text>
+            </View>
+            <Text style={styles.arrow}>→</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* 6. Backup & Data */}
+        <Animated.View
+          style={[
+            styles.settingCard,
+            {
+              opacity: card6Anim,
+              transform: [
+                {
+                  translateX: card6Anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.cardContent}
+            activeOpacity={0.7}
+            onPress={() => console.log('Backup & Data - Coming Soon')}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: '#F3E5F5' }]}>
+              <Text style={styles.iconText}>☁️</Text>
+            </View>
+            <View style={styles.cardText}>
+              <Text style={styles.cardTitle}>Backup & Data</Text>
+              <Text style={styles.cardSubtitle}>Export and manage data</Text>
             </View>
             <Text style={styles.arrow}>→</Text>
           </TouchableOpacity>

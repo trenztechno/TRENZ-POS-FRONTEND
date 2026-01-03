@@ -8,8 +8,7 @@ import {
   StatusBar,
   ScrollView,
   TextInput,
-  Image,
-  Alert,
+  Modal,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, MenuItem } from '../types/business.types';
@@ -59,17 +58,20 @@ const DEMO_ITEMS: MenuItem[] = [
 const CATEGORIES = ['All Items', 'Rice & Dosa', 'Chapati & Curry', 'Tea & Coffee', 'Ice Cream'];
 
 const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation }) => {
+  // ALL HOOKS MUST BE AT THE TOP - NEVER CONDITIONAL!
   const [items, setItems] = useState<MenuItem[]>(DEMO_ITEMS);
   const [filteredItems, setFilteredItems] = useState<MenuItem[]>(DEMO_ITEMS);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Items');
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
 
-  // Animations
   const headerAnim = useRef(new Animated.Value(0)).current;
   const searchAnim = useRef(new Animated.Value(0)).current;
   const filtersAnim = useRef(new Animated.Value(0)).current;
   const listAnim = useRef(new Animated.Value(0)).current;
 
+  // Effects
   useEffect(() => {
     Animated.stagger(100, [
       Animated.timing(headerAnim, {
@@ -93,45 +95,41 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
+  }, [headerAnim, searchAnim, filtersAnim, listAnim]);
 
   useEffect(() => {
-    filterItems();
-  }, [searchQuery, selectedCategory, items]);
-
-  const filterItems = () => {
     let filtered = items;
 
-    // Filter by search
     if (searchQuery) {
       filtered = filtered.filter((item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
 
-    // Filter by category
     if (selectedCategory !== 'All Items') {
       filtered = filtered.filter((item) => item.category === selectedCategory);
     }
 
     setFilteredItems(filtered);
+  }, [searchQuery, selectedCategory, items]);
+
+  // Handlers
+  const handleDeleteItem = (item: MenuItem) => {
+    setItemToDelete(item);
+    setDeleteModalVisible(true);
   };
 
-  const handleDeleteItem = (itemId: string) => {
-    Alert.alert(
-      'Delete Item',
-      'Are you sure you want to delete this item?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setItems(items.filter((item) => item.id !== itemId));
-          },
-        },
-      ]
-    );
+  const confirmDelete = () => {
+    if (itemToDelete) {
+      setItems(items.filter((item) => item.id !== itemToDelete.id));
+      setDeleteModalVisible(false);
+      setItemToDelete(null);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteModalVisible(false);
+    setItemToDelete(null);
   };
 
   const handleEditItem = (item: MenuItem) => {
@@ -273,11 +271,8 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.list}
         >
-          {filteredItems.map((item, index) => (
-            <View
-              key={item.id}
-              style={styles.itemCard}
-            >
+          {filteredItems.map((item) => (
+            <View key={item.id} style={styles.itemCard}>
               <View style={styles.itemImage}>
                 <Icon name="restaurant-outline" size={32} color="#C62828" />
               </View>
@@ -299,7 +294,7 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
 
                 <TouchableOpacity
                   style={styles.deleteButton}
-                  onPress={() => handleDeleteItem(item.id)}
+                  onPress={() => handleDeleteItem(item)}
                   activeOpacity={0.7}
                 >
                   <Icon name="trash-outline" size={16} color="#EF5350" />
@@ -321,6 +316,39 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
           <Text style={styles.addButtonText}>+ Add Item</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        visible={deleteModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Delete this item?</Text>
+            <Text style={styles.modalItemName}>"{itemToDelete?.name}"</Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.deleteConfirmButton}
+                onPress={confirmDelete}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.deleteConfirmText}>Yes, Delete Item</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={cancelDelete}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -507,6 +535,71 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: 353,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    paddingHorizontal: 23,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.1,
+    shadowRadius: 25,
+    elevation: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333333',
+    textAlign: 'center',
+    letterSpacing: -0.26,
+    lineHeight: 33,
+  },
+  modalItemName: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#666666',
+    textAlign: 'center',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  modalButtons: {
+    gap: 12,
+    marginTop: 6,
+  },
+  deleteConfirmButton: {
+    backgroundColor: '#C62828',
+    borderRadius: 10,
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteConfirmText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  cancelButton: {
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666666',
+    letterSpacing: -0.31,
+    lineHeight: 24,
   },
 });
 

@@ -25,6 +25,8 @@ import AdminDashboardScreen from '../screens/AdminDashboardScreen';
 import ItemManagementScreen from '../screens/ItemManagementScreen';
 import AddItemScreen from '../screens/AddItemScreen';
 import EditItemScreen from '../screens/EditItemScreen';
+import BillFormatScreen from '../screens/BillFormatScreen';
+import BusinessDetailsScreen from '../screens/BusinessDetailsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -126,6 +128,16 @@ const AppNavigator: React.FC = () => {
         name="EditItem" 
         component={EditItemScreen}
         options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+        name="BillFormat" 
+        component={BillFormatScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="BusinessDetails" 
+        component={BusinessDetailsScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
     </Stack.Navigator>
   );
