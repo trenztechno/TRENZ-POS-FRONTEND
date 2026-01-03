@@ -1,0 +1,487 @@
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  StatusBar,
+  ScrollView,
+  Modal,
+  Animated,
+  TextInput,
+  Switch,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RootStackParamList } from '../types/business.types';
+
+type BillNumberingScreenProps = {
+  navigation: NativeStackNavigationProp<RootStackParamList, 'BillNumbering'>;
+};
+
+const BillNumberingScreen: React.FC<BillNumberingScreenProps> = ({ navigation }) => {
+  const [prefix, setPrefix] = useState('INV-');
+  const [startingNumber, setStartingNumber] = useState('1001');
+  const [includeDate, setIncludeDate] = useState(true);
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const generatePreview = () => {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const dateString = `${year}${month}${day}`;
+
+    if (includeDate) {
+      return `${prefix}${dateString}-${startingNumber}`;
+    } else {
+      return `${prefix}${startingNumber}`;
+    }
+  };
+
+  const handleApplyNumbering = () => {
+    setConfirmModalVisible(true);
+  };
+
+  const handleConfirmApply = async () => {
+    setConfirmModalVisible(false);
+    // Save numbering settings here (AsyncStorage or API)
+    // await AsyncStorage.setItem('bill_numbering', JSON.stringify({ prefix, startingNumber, includeDate }));
+  };
+
+  const handleCancelConfirm = () => {
+    setConfirmModalVisible(false);
+  };
+
+  return (
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Header */}
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.backArrow}>←</Text>
+            <Text style={styles.backText}>Back</Text>
+          </TouchableOpacity>
+
+          <View style={styles.headerText}>
+            <Text style={styles.title}>Bill Numbering</Text>
+            <Text style={styles.subtitle}>Configure invoice number format</Text>
+          </View>
+        </Animated.View>
+
+        {/* Inputs Section */}
+        <Animated.View
+          style={[
+            styles.inputsSection,
+            {
+              opacity: fadeAnim,
+              transform: [
+                {
+                  translateY: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {/* Prefix Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Prefix</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="INV-"
+              placeholderTextColor="rgba(51, 51, 51, 0.5)"
+              value={prefix}
+              onChangeText={setPrefix}
+              maxLength={10}
+            />
+            <Text style={styles.helperText}>
+              Text that appears before the bill number
+            </Text>
+          </View>
+
+          {/* Starting Number Input */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Starting Number</Text>
+            <TextInput
+              style={styles.textInput}
+              placeholder="1001"
+              placeholderTextColor="rgba(51, 51, 51, 0.5)"
+              value={startingNumber}
+              onChangeText={setStartingNumber}
+              keyboardType="numeric"
+              maxLength={6}
+            />
+            <Text style={styles.helperText}>
+              First bill number to be generated
+            </Text>
+          </View>
+
+          {/* Include Date Toggle */}
+          <View style={styles.toggleCard}>
+            <View style={styles.toggleContent}>
+              <View style={styles.toggleInfo}>
+                <Text style={styles.toggleTitle}>Include Date</Text>
+                <Text style={styles.toggleDescription}>
+                  Add date in bill number (YYYYMMDD)
+                </Text>
+              </View>
+
+              <Switch
+                value={includeDate}
+                onValueChange={setIncludeDate}
+                trackColor={{ false: '#E0E0E0', true: '#C62828' }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor="#E0E0E0"
+              />
+            </View>
+          </View>
+        </Animated.View>
+
+        {/* Preview Section */}
+        <Animated.View
+          style={[
+            styles.previewSection,
+            {
+              opacity: fadeAnim,
+              transform: [
+                {
+                  translateY: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={styles.previewLabel}>Preview:</Text>
+
+          <View style={styles.previewCard}>
+            <Text style={styles.previewNumber}>{generatePreview()}</Text>
+          </View>
+
+          <Text style={styles.previewHelper}>Example bill number format</Text>
+        </Animated.View>
+
+        {/* Apply Button */}
+        <Animated.View
+          style={[
+            styles.buttonContainer,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.applyButton}
+            onPress={handleApplyNumbering}
+            activeOpacity={0.9}
+          >
+            <Text style={styles.applyButtonText}>Apply Numbering</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </ScrollView>
+
+      {/* Confirmation Modal */}
+      <Modal
+        visible={confirmModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelConfirm}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Confirm Bill Numbering</Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.confirmButton}
+                onPress={handleConfirmApply}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.confirmButtonText}>YES, APPLY</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={handleCancelConfirm}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.cancelButtonText}>CANCEL</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </KeyboardAvoidingView>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  scrollContent: {
+    padding: 20,
+    paddingTop: 48,
+    gap: 24,
+  },
+  header: {
+    gap: 12,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  backArrow: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#C62828',
+  },
+  backText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#C62828',
+  },
+  headerText: {},
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#333333',
+    marginBottom: 4,
+    letterSpacing: 0.38,
+    lineHeight: 42,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#999999',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  inputsSection: {
+    gap: 20,
+  },
+  inputGroup: {
+    gap: 8,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333333',
+    letterSpacing: -0.15,
+    lineHeight: 21,
+  },
+  textInput: {
+    height: 48,
+    borderWidth: 1.81,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#333333',
+    letterSpacing: -0.31,
+  },
+  helperText: {
+    fontSize: 16,
+    color: '#999999',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  toggleCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.6,
+    borderColor: '#E0E0E0',
+    borderRadius: 16,
+    padding: 17,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  toggleContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  toggleInfo: {
+    flex: 1,
+  },
+  toggleTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333333',
+    marginBottom: 4,
+    letterSpacing: -0.44,
+    lineHeight: 27,
+  },
+  toggleDescription: {
+    fontSize: 16,
+    color: '#999999',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  previewSection: {
+    backgroundColor: '#F5F5F5',
+    borderWidth: 0.6,
+    borderColor: '#E0E0E0',
+    borderRadius: 16,
+    padding: 21,
+    gap: 8,
+  },
+  previewLabel: {
+    fontSize: 16,
+    color: '#999999',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  previewCard: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 0.6,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    padding: 17,
+    minHeight: 57,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  previewNumber: {
+    fontSize: 16,
+    color: '#C62828',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+    textAlign: 'center',
+    fontWeight: '400',
+  },
+  previewHelper: {
+    fontSize: 16,
+    color: '#999999',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+    textAlign: 'center',
+  },
+  buttonContainer: {
+    marginTop: 8,
+  },
+  applyButton: {
+    backgroundColor: '#C62828',
+    height: 52,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 353,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.1,
+    shadowRadius: 25,
+    elevation: 20,
+    gap: 12,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#333333',
+    textAlign: 'center',
+    letterSpacing: -0.26,
+    lineHeight: 33,
+  },
+  modalButtons: {
+    gap: 12,
+  },
+  confirmButton: {
+    backgroundColor: '#C62828',
+    height: 48,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  confirmButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+  cancelButton: {
+    height: 48,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666666',
+    letterSpacing: -0.31,
+    lineHeight: 24,
+  },
+});
+
+export default BillNumberingScreen;

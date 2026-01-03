@@ -234,7 +234,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           <TouchableOpacity
             style={styles.cardContent}
             activeOpacity={0.7}
-            onPress={() => console.log('GST Settings - Coming Soon')}
+            onPress={() => navigation.navigate('GSTSettings')}
           >
             <View style={[styles.iconContainer, { backgroundColor: '#F1F8E9' }]}>
               <Text style={styles.iconText}>📊</Text>
@@ -300,7 +300,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           <TouchableOpacity
             style={styles.cardContent}
             activeOpacity={0.7}
-            onPress={() => console.log('Printer Setup - Coming Soon')}
+            onPress={() => navigation.navigate('PrinterSetup')}
           >
             <View style={[styles.iconContainer, { backgroundColor: '#EEEEEE' }]}>
               <Text style={styles.iconText}>🖨️</Text>
@@ -333,7 +333,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           <TouchableOpacity
             style={styles.cardContent}
             activeOpacity={0.7}
-            onPress={() => console.log('Add People - Coming Soon')}
+            onPress={() => navigation.navigate('AddPeople')}
           >
             <View style={[styles.iconContainer, { backgroundColor: '#E3F2FD' }]}>
               <Text style={styles.iconText}>👥</Text>

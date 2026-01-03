@@ -27,6 +27,15 @@ import AddItemScreen from '../screens/AddItemScreen';
 import EditItemScreen from '../screens/EditItemScreen';
 import BillFormatScreen from '../screens/BillFormatScreen';
 import BusinessDetailsScreen from '../screens/BusinessDetailsScreen';
+import InvoiceFormatScreen from '../screens/InvoiceFormatScreen';
+import InvoiceStructureScreen from '../screens/InvoiceStructureScreen';
+import LogoUploadScreen from '../screens/LogoUploadScreen';
+import FooterNoteScreen from '../screens/FooterNoteScreen';
+import BillNumberingScreen from '../screens/BillNumberingScreen';
+import GSTSettingsScreen from '../screens/GSTSettingsScreen';
+import PrinterSetupScreen from '../screens/PrinterSetupScreen';
+import TestPrintPreviewScreen from '../screens/TestPrintPreviewScreen';
+import AddPeopleScreen from '../screens/AddPeopleScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -137,6 +146,51 @@ const AppNavigator: React.FC = () => {
       <Stack.Screen 
         name="BusinessDetails" 
         component={BusinessDetailsScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="InvoiceFormat" 
+        component={InvoiceFormatScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="InvoiceStructure" 
+        component={InvoiceStructureScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="LogoUpload" 
+        component={LogoUploadScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="FooterNote" 
+        component={FooterNoteScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+       <Stack.Screen 
+        name="BillNumbering" 
+        component={BillNumberingScreen} 
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="GSTSettings" 
+        component={GSTSettingsScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="PrinterSetup" 
+        component={PrinterSetupScreen} 
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="TestPrintPreview" 
+        component={TestPrintPreviewScreen}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
+      />
+      <Stack.Screen 
+        name="AddPeople" 
+        component={AddPeopleScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
     </Stack.Navigator>

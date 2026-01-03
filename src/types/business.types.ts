@@ -64,7 +64,7 @@ export type RootStackParamList = {
   AddItem: undefined;
   EditItem: { item: MenuItem };
   
-  // Bill Format Options (NEW)
+  // Bill Format Options
   BillFormat: undefined;
   BusinessDetails: undefined;
   InvoiceFormat: undefined;
@@ -73,9 +73,10 @@ export type RootStackParamList = {
   FooterNote: undefined;
   BillNumbering: undefined;
   
-  // Other Admin Options (NEW)
+  // Other Admin Options
   GSTSettings: undefined;
   PrinterSetup: undefined;
   AddPeople: undefined;
   BackupData: undefined;
+  TestPrintPreview: undefined;
 };
