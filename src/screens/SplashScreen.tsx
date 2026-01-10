@@ -1,8 +1,9 @@
-import React, {useEffect, useRef} from 'react';
-import {View, StyleSheet, Animated} from 'react-native';
+import React, {useEffect, useRef, useState} from 'react';
+import {View, StyleSheet, Animated, Text} from 'react-native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import StoreIcon from '../assets/icons/store.svg';
 import type {RootStackParamList} from '../types/business.types';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type SplashScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Splash'>;
@@ -62,12 +63,62 @@ const LoadingDot: React.FC<{delay: number}> = ({delay}) => {
 };
 
 const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
+  const [businessName, setBusinessName] = useState<string>('');
+  const [isReady, setIsReady] = useState(false);
+
   const iconScale = useRef(new Animated.Value(0)).current;
   const iconOpacity = useRef(new Animated.Value(0)).current;
   const dotsOpacity = useRef(new Animated.Value(0)).current;
   const fadeOut = useRef(new Animated.Value(1)).current;
+  const businessNameOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    checkBusinessSetup();
+    startAnimations();
+  }, []);
+
+  useEffect(() => {
+    if (isReady) {
+      scheduleNavigation();
+    }
+  }, [isReady]);
+
+  const checkBusinessSetup = async () => {
+    try {
+      const settings = await getBusinessSettings();
+      
+      // Track app launch
+      const launchCount = (settings?.app_launch_count || 0) + 1;
+      const timestamp = new Date().toISOString();
+      
+      await saveBusinessSettings({
+        app_launch_count: launchCount,
+        last_app_launch: timestamp,
+      });
+
+      // Get business name if set up
+      if (settings?.business_name) {
+        setBusinessName(settings.business_name);
+        
+        // Animate business name
+        setTimeout(() => {
+          Animated.timing(businessNameOpacity, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }).start();
+        }, 1200);
+      }
+
+      setIsReady(true);
+    } catch (error) {
+      console.error('Failed to check business setup:', error);
+      // Continue anyway
+      setIsReady(true);
+    }
+  };
+
+  const startAnimations = () => {
     Animated.sequence([
       Animated.delay(300),
       Animated.parallel([
@@ -93,19 +144,42 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
         useNativeDriver: true,
       }),
     ]).start();
+  };
 
-    const navigationTimeout = setTimeout(() => {
+  const scheduleNavigation = () => {
+    const navigationTimeout = setTimeout(async () => {
       Animated.timing(fadeOut, {
         toValue: 0,
         duration: 300,
         useNativeDriver: true,
       }).start(() => {
-        navigation.replace('Welcome');
+        navigateToAppropriateScreen();
       });
     }, 3000);
 
     return () => clearTimeout(navigationTimeout);
-  }, []);
+  };
+
+  const navigateToAppropriateScreen = async () => {
+    try {
+      const settings = await getBusinessSettings();
+      
+      // Check if business is set up
+      const isBusinessSetup = settings?.business_name && settings.business_name.length > 0;
+      
+      if (isBusinessSetup) {
+        // Business is set up - go to mode selection
+        navigation.replace('ModeSelection');
+      } else {
+        // Business not set up - go to welcome/onboarding
+        navigation.replace('Welcome');
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+      // Default to welcome screen
+      navigation.replace('Welcome');
+    }
+  };
 
   return (
     <Animated.View style={[styles.container, {opacity: fadeOut}]}>
@@ -122,6 +196,12 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
             <StoreIcon width={96} height={96} />
           </View>
         </Animated.View>
+
+        {businessName ? (
+          <Animated.View style={[styles.businessNameContainer, {opacity: businessNameOpacity}]}>
+            <Text style={styles.businessName}>{businessName}</Text>
+          </Animated.View>
+        ) : null}
 
         <Animated.View style={[styles.dotsContainer, {opacity: dotsOpacity}]}>
           <LoadingDot delay={0} />
@@ -156,6 +236,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 8,
+  },
+  businessNameContainer: {
+    marginBottom: 24,
+  },
+  businessName: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#333333',
+    letterSpacing: -0.3,
   },
   dotsContainer: {
     flexDirection: 'row',

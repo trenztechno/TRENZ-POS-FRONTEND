@@ -8,9 +8,12 @@ import {
   ScrollView,
   Animated,
   Switch,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type InvoiceStructureScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'InvoiceStructure'>;
@@ -51,26 +54,53 @@ const InvoiceStructureScreen: React.FC<InvoiceStructureScreenProps> = ({ navigat
     },
   ]);
 
-  const [isApplying, setIsApplying] = useState(false);
-  const [isApplied, setIsApplied] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadInvoiceStructure();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
+
+  const loadInvoiceStructure = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings) {
+        setOptions(prevOptions =>
+          prevOptions.map(option => ({
+            ...option,
+            enabled: settings[option.id] !== undefined ? settings[option.id] === 1 : option.enabled,
+          }))
+        );
+      }
+    } catch (error) {
+      console.error('Failed to load invoice structure:', error);
+      Alert.alert('Error', 'Failed to load invoice structure settings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleToggle = (id: string) => {
     setOptions(
@@ -78,24 +108,47 @@ const InvoiceStructureScreen: React.FC<InvoiceStructureScreenProps> = ({ navigat
         option.id === id ? { ...option, enabled: !option.enabled } : option
       )
     );
-    // Reset applied state when settings change
-    setIsApplied(false);
   };
 
   const handleApplyStructure = async () => {
-    setIsApplying(true);
+    try {
+      setIsSaving(true);
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsApplying(false);
-      setIsApplied(true);
-      
-      // Auto-hide success state after 2 seconds
-      setTimeout(() => {
-        setIsApplied(false);
-      }, 2000);
-    }, 1500);
+      // Convert options to database format
+      const settingsData: any = {};
+      options.forEach(option => {
+        settingsData[option.id] = option.enabled ? 1 : 0;
+      });
+
+      // Save to database
+      await saveBusinessSettings(settingsData);
+
+      Alert.alert(
+        'Success',
+        'Invoice structure updated successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Failed to save invoice structure:', error);
+      Alert.alert('Error', 'Failed to save invoice structure. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading invoice structure...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -166,6 +219,7 @@ const InvoiceStructureScreen: React.FC<InvoiceStructureScreenProps> = ({ navigat
                 trackColor={{ false: '#E0E0E0', true: '#C62828' }}
                 thumbColor="#FFFFFF"
                 ios_backgroundColor="#E0E0E0"
+                disabled={isSaving}
               />
             </View>
           ))}
@@ -183,21 +237,17 @@ const InvoiceStructureScreen: React.FC<InvoiceStructureScreenProps> = ({ navigat
           <TouchableOpacity
             style={[
               styles.applyButton,
-              isApplying && styles.applyButtonApplying,
-              isApplied && styles.applyButtonApplied,
+              isSaving && styles.applyButtonDisabled,
             ]}
             onPress={handleApplyStructure}
             activeOpacity={0.9}
-            disabled={isApplying || isApplied}
+            disabled={isSaving}
           >
-            <Text
-              style={[
-                styles.applyButtonText,
-                isApplied && styles.applyButtonTextApplied,
-              ]}
-            >
-              {isApplying ? 'Applying...' : isApplied ? 'Applied Successfully' : 'Apply Structure'}
-            </Text>
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.applyButtonText}>Apply Structure</Text>
+            )}
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
@@ -209,6 +259,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   scrollContent: {
     padding: 20,
@@ -299,13 +358,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  applyButtonApplying: {
-    backgroundColor: '#EF9A9A',
-  },
-  applyButtonApplied: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#4CAF50',
+  applyButtonDisabled: {
+    opacity: 0.6,
   },
   applyButtonText: {
     fontSize: 16,
@@ -313,9 +367,6 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: -0.31,
     lineHeight: 24,
-  },
-  applyButtonTextApplied: {
-    color: '#4CAF50',
   },
 });
 

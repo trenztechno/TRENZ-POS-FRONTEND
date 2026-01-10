@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,48 +6,111 @@ import {
   StatusBar,
   TouchableWithoutFeedback,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp } from '@react-navigation/native';
 import DocIconGreen from '../assets/icons/DocIconGreen.svg';
 import CheckWhite from '../assets/icons/CheckWhite.svg';
 import { RootStackParamList } from '../types/business.types';
+import { saveBusinessSettings } from '../services/storage';
 
 type SaveSuccessScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SaveSuccess'>;
+  route: RouteProp<RootStackParamList, 'SaveSuccess'>;
 };
 
-const SaveSuccessScreen: React.FC<SaveSuccessScreenProps> = ({ navigation }) => {
+const SaveSuccessScreen: React.FC<SaveSuccessScreenProps> = ({ navigation, route }) => {
+  const [isSaving, setIsSaving] = useState(true);
+  const [saveTime, setSaveTime] = useState<string>('');
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const checkmarkAnim = useRef(new Animated.Value(0)).current;
 
+  const params = route.params as { fileName?: string; fileSize?: number; fileFormat?: string } | undefined;
+  const { fileName, fileSize, fileFormat } = params || {
+    fileName: undefined,
+    fileSize: undefined,
+    fileFormat: undefined,
+  };
+
   useEffect(() => {
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.spring(checkmarkAnim, {
-        toValue: 1,
-        tension: 80,
-        friction: 6,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    savePdfExportInfo();
   }, []);
+
+  useEffect(() => {
+    if (!isSaving) {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            tension: 50,
+            friction: 7,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.spring(checkmarkAnim, {
+          toValue: 1,
+          tension: 80,
+          friction: 6,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isSaving]);
+
+  const savePdfExportInfo = async () => {
+    try {
+      const timestamp = new Date().toISOString();
+      setSaveTime(formatTime(new Date()));
+
+      // Save PDF export timestamp to database
+      await saveBusinessSettings({
+        last_pdf_export_date: timestamp,
+      });
+    } catch (error) {
+      console.error('Failed to save PDF export info:', error);
+      // Continue anyway - don't block user
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const formatTime = (date: Date): string => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes.toString().padStart(2, '0');
+    return `${displayHours}:${displayMinutes} ${ampm}`;
+  };
+
+  const formatFileSize = (bytes?: number): string => {
+    if (!bytes) return 'Unknown';
+    
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
 
   const handleTap = () => {
     navigation.navigate('Dashboard');
   };
+
+  if (isSaving) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={styles.loadingText}>Finalizing save...</Text>
+      </View>
+    );
+  }
 
   return (
     <TouchableWithoutFeedback onPress={handleTap}>
@@ -89,19 +152,27 @@ const SaveSuccessScreen: React.FC<SaveSuccessScreenProps> = ({ navigation }) => 
           <View style={styles.fileDetailsCard}>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>File Name:</Text>
-              <Text style={styles.detailValue}>bill-summary.pdf</Text>
+              <Text style={styles.detailValue} numberOfLines={1}>
+                {fileName || 'bill-summary.pdf'}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>File Size:</Text>
-              <Text style={styles.detailValue}>128 KB</Text>
+              <Text style={styles.detailValue}>
+                {formatFileSize(fileSize)}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Format:</Text>
-              <Text style={styles.detailValue}>PDF Document</Text>
+              <Text style={styles.detailValue}>
+                {fileFormat || 'PDF Document'}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Saved At:</Text>
-              <Text style={styles.detailValue}>03:05 PM</Text>
+              <Text style={styles.detailValue}>
+                {saveTime || 'Just now'}
+              </Text>
             </View>
           </View>
 
@@ -131,6 +202,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingContainer: {
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666666',
   },
   content: {
     alignItems: 'center',
@@ -248,6 +326,7 @@ const styles = StyleSheet.create({
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
   },
   detailLabel: {
     fontSize: 14,
@@ -258,6 +337,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#1B5E20',
     letterSpacing: -0.15,
+    flex: 1,
+    textAlign: 'right',
+    marginLeft: 8,
   },
   successBanner: {
     width: '100%',

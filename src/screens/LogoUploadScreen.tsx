@@ -10,11 +10,13 @@ import {
   Animated,
   Image,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { launchImageLibrary } from 'react-native-image-picker';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type LogoUploadScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'LogoUpload'>;
@@ -23,24 +25,48 @@ type LogoUploadScreenProps = {
 const LogoUploadScreen: React.FC<LogoUploadScreenProps> = ({ navigation }) => {
   const [logoUri, setLogoUri] = useState<string | null>(null);
   const [removeModalVisible, setRemoveModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadLogo();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
+
+  const loadLogo = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings && settings.logo_path) {
+        setLogoUri(settings.logo_path);
+      }
+    } catch (error) {
+      console.error('Failed to load logo:', error);
+      Alert.alert('Error', 'Failed to load logo');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleChangeLogo = async () => {
     try {
@@ -53,12 +79,23 @@ const LogoUploadScreen: React.FC<LogoUploadScreenProps> = ({ navigation }) => {
       if (result.assets && result.assets.length > 0) {
         const selectedImage = result.assets[0];
         if (selectedImage.uri) {
+          setIsSaving(true);
+          
+          // Save to database
+          await saveBusinessSettings({
+            logo_path: selectedImage.uri,
+          });
+
           setLogoUri(selectedImage.uri);
+          
+          Alert.alert('Success', 'Logo updated successfully!');
         }
       }
     } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image. Please try again.');
+      console.error('Error picking/saving image:', error);
+      Alert.alert('Error', 'Failed to save logo. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -66,14 +103,39 @@ const LogoUploadScreen: React.FC<LogoUploadScreenProps> = ({ navigation }) => {
     setRemoveModalVisible(true);
   };
 
-  const confirmRemoveLogo = () => {
-    setLogoUri(null);
-    setRemoveModalVisible(false);
+  const confirmRemoveLogo = async () => {
+    try {
+      setIsSaving(true);
+      setRemoveModalVisible(false);
+
+      // Remove from database (set to null)
+      await saveBusinessSettings({
+        logo_path: null,
+      });
+
+      setLogoUri(null);
+      
+      Alert.alert('Success', 'Logo removed successfully!');
+    } catch (error) {
+      console.error('Failed to remove logo:', error);
+      Alert.alert('Error', 'Failed to remove logo. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const cancelRemoveLogo = () => {
     setRemoveModalVisible(false);
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading logo...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -146,27 +208,39 @@ const LogoUploadScreen: React.FC<LogoUploadScreenProps> = ({ navigation }) => {
 
           {/* Change Logo Button */}
           <TouchableOpacity
-            style={[styles.changeButton, logoUri && styles.changeButtonFilled]}
+            style={[
+              styles.changeButton, 
+              logoUri && styles.changeButtonFilled,
+              isSaving && styles.buttonDisabled
+            ]}
             onPress={handleChangeLogo}
             activeOpacity={0.9}
+            disabled={isSaving}
           >
-            <Icon
-              name="image-outline"
-              size={20}
-              color={logoUri ? '#FFFFFF' : '#C62828'}
-              style={styles.buttonIcon}
-            />
-            <Text style={[styles.changeButtonText, logoUri && styles.changeButtonTextFilled]}>
-              Change Bill Logo
-            </Text>
+            {isSaving ? (
+              <ActivityIndicator size="small" color={logoUri ? '#FFFFFF' : '#C62828'} />
+            ) : (
+              <>
+                <Icon
+                  name="image-outline"
+                  size={20}
+                  color={logoUri ? '#FFFFFF' : '#C62828'}
+                  style={styles.buttonIcon}
+                />
+                <Text style={[styles.changeButtonText, logoUri && styles.changeButtonTextFilled]}>
+                  Change Bill Logo
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
 
           {/* Remove Logo Button (only show if logo exists) */}
           {logoUri && (
             <TouchableOpacity
-              style={styles.removeButton}
+              style={[styles.removeButton, isSaving && styles.buttonDisabled]}
               onPress={handleRemoveLogo}
               activeOpacity={0.9}
+              disabled={isSaving}
             >
               <Text style={styles.removeButtonText}>Remove the Logo</Text>
             </TouchableOpacity>
@@ -216,6 +290,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   scrollContent: {
     padding: 20,
@@ -322,6 +405,9 @@ const styles = StyleSheet.create({
   changeButtonFilled: {
     backgroundColor: '#C62828',
     borderColor: '#C62828',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   buttonIcon: {
     marginTop: -2,

@@ -8,10 +8,12 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import AnimatedButton from '../components/AnimatedButton';
 import type {RootStackParamList} from '../types/business.types';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type JoinBusinessScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'JoinBusiness'>;
@@ -136,23 +138,44 @@ const JoinBusinessScreen: React.FC<JoinBusinessScreenProps> = ({navigation}) => 
     setIsLoading(true);
     setErrorMessage('');
 
-    // Simulate API call
-    setTimeout(() => {
-      // Example validation - replace with actual API call
-      if (businessCode === '123456') {
-        // Valid code - navigate to mode selection
+    try {
+      // TODO: Replace with actual API call to verify business code
+      // const response = await fetch(`${API_URL}/business/verify`, {
+      //   method: 'POST',
+      //   body: JSON.stringify({ code: businessCode }),
+      // });
+      
+      // For now, simulate API validation
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 1500));
+      
+      // Mock validation - in production, this should verify with your backend
+      if (businessCode.length >= 6) {
+        // Save business code to local database
+        await saveBusinessSettings({
+          business_code: businessCode.trim(),
+        });
+
         setIsLoading(false);
+        
+        // Successfully joined - navigate to mode selection
         navigation.navigate('ModeSelection');
       } else {
-        // Invalid code - show error
         setIsLoading(false);
-        setErrorMessage('Invalid Code Retry Again');
+        setErrorMessage('Invalid Code. Must be at least 6 characters.');
       }
-    }, 1500);
+    } catch (error) {
+      console.error('Failed to join business:', error);
+      setIsLoading(false);
+      setErrorMessage('Failed to join business. Please try again.');
+    }
   };
 
   const handleScanQR = () => {
-    console.log('Open QR Scanner');
+    Alert.alert(
+      'QR Scanner',
+      'QR code scanning will be implemented in a future update.',
+      [{ text: 'OK' }]
+    );
     // TODO: Implement QR scanner
     // navigation.navigate('QRScanner');
   };
@@ -207,15 +230,15 @@ const JoinBusinessScreen: React.FC<JoinBusinessScreenProps> = ({navigation}) => 
               styles.input,
               errorMessage && styles.inputError,
             ]}
-            placeholder="123456"
+            placeholder="Enter 6+ character code"
             placeholderTextColor="#999"
             value={businessCode}
             onChangeText={(text) => {
               setBusinessCode(text);
               setErrorMessage('');
             }}
-            keyboardType="number-pad"
-            maxLength={10}
+            autoCapitalize="characters"
+            maxLength={20}
             editable={!isLoading}
           />
           {errorMessage ? (
@@ -235,7 +258,7 @@ const JoinBusinessScreen: React.FC<JoinBusinessScreenProps> = ({navigation}) => 
             },
           ]}>
           <AnimatedButton
-            title={isLoading ? 'Loading...' : 'Join Business'}
+            title={isLoading ? 'Joining...' : 'Join Business'}
             onPress={handleJoinBusiness}
             variant="primary"
             disabled={!businessCode.trim() || isLoading}

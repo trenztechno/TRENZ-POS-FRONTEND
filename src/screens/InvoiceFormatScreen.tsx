@@ -8,10 +8,13 @@ import {
   ScrollView,
   Modal,
   Animated,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type InvoiceFormatScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'InvoiceFormat'>;
@@ -55,24 +58,49 @@ const InvoiceFormatScreen: React.FC<InvoiceFormatScreenProps> = ({ navigation })
   const [selectedFormat, setSelectedFormat] = useState<string>('classic');
   const [appliedFormat, setAppliedFormat] = useState<string>('classic');
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadInvoiceFormat();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
+
+  const loadInvoiceFormat = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings && settings.invoice_format) {
+        setSelectedFormat(settings.invoice_format);
+        setAppliedFormat(settings.invoice_format);
+      }
+    } catch (error) {
+      console.error('Failed to load invoice format:', error);
+      Alert.alert('Error', 'Failed to load invoice format');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleFormatSelect = (formatId: string) => {
     setSelectedFormat(formatId);
@@ -82,10 +110,34 @@ const InvoiceFormatScreen: React.FC<InvoiceFormatScreenProps> = ({ navigation })
     setConfirmModalVisible(true);
   };
 
-  const handleConfirmApply = () => {
-    setAppliedFormat(selectedFormat);
-    setConfirmModalVisible(false);
-    // You can add API call here to save the format preference
+  const handleConfirmApply = async () => {
+    try {
+      setIsSaving(true);
+      setConfirmModalVisible(false);
+      
+      // Save to database
+      await saveBusinessSettings({
+        invoice_format: selectedFormat,
+      });
+
+      setAppliedFormat(selectedFormat);
+
+      Alert.alert(
+        'Success',
+        'Invoice format updated successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Failed to save invoice format:', error);
+      Alert.alert('Error', 'Failed to save invoice format. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancelConfirm = () => {
@@ -99,6 +151,15 @@ const InvoiceFormatScreen: React.FC<InvoiceFormatScreenProps> = ({ navigation })
   const isFormatSelected = (formatId: string) => {
     return formatId === selectedFormat;
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading invoice format...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -177,8 +238,9 @@ const InvoiceFormatScreen: React.FC<InvoiceFormatScreenProps> = ({ navigation })
                     selected && styles.formatCardSelected,
                     applied && styles.formatCardApplied,
                   ]}
-                  onPress={() => handleFormatSelect(format.id)}
+                  onPress={() => !isSaving && handleFormatSelect(format.id)}
                   activeOpacity={0.7}
+                  disabled={isSaving}
                 >
                   <View style={styles.formatContent}>
                     {/* Preview Box */}
@@ -237,11 +299,16 @@ const InvoiceFormatScreen: React.FC<InvoiceFormatScreenProps> = ({ navigation })
           ]}
         >
           <TouchableOpacity
-            style={styles.applyButton}
+            style={[styles.applyButton, isSaving && styles.applyButtonDisabled]}
             onPress={handleApplyFormat}
             activeOpacity={0.9}
+            disabled={isSaving}
           >
-            <Text style={styles.applyButtonText}>Apply Invoice Format</Text>
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.applyButtonText}>Apply Invoice Format</Text>
+            )}
           </TouchableOpacity>
         </Animated.View>
       </ScrollView>
@@ -285,6 +352,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   scrollContent: {
     padding: 20,
@@ -414,6 +490,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  applyButtonDisabled: {
+    opacity: 0.6,
   },
   applyButtonText: {
     fontSize: 16,

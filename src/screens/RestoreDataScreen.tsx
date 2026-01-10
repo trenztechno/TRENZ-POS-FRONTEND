@@ -11,10 +11,12 @@ import {
   ScrollView,
   Platform,
   PermissionsAndroid,
+  ActivityIndicator,
 } from 'react-native';
 import RNFS from 'react-native-fs';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type RestoreDataScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RestoreData'>;
@@ -25,23 +27,48 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showFileListModal, setShowFileListModal] = useState(false);
   const [backupFiles, setBackupFiles] = useState<Array<{ name: string; path: string; size: number }>>([]);
+  const [lastRestoreDate, setLastRestoreDate] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isValidating, setIsValidating] = useState(false);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadLastRestoreInfo();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
+
+  const loadLastRestoreInfo = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings && settings.last_restore_date) {
+        setLastRestoreDate(settings.last_restore_date);
+      }
+    } catch (error) {
+      console.error('Failed to load restore info:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const requestStoragePermission = async () => {
     if (Platform.OS === 'android') {
@@ -63,6 +90,38 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
       }
     }
     return true;
+  };
+
+  const validateBackupFile = async (filePath: string): Promise<boolean> => {
+    try {
+      setIsValidating(true);
+      
+      // Read first few bytes to check if it's valid JSON or valid backup format
+      const content = await RNFS.readFile(filePath, 'utf8');
+      
+      // Try to parse as JSON
+      const parsed = JSON.parse(content);
+      
+      // Check if it has required backup structure
+      if (!parsed.version || !parsed.data) {
+        Alert.alert(
+          'Invalid Backup File',
+          'This file does not appear to be a valid backup file.'
+        );
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Failed to validate backup file:', error);
+      Alert.alert(
+        'Invalid Backup File',
+        'Unable to read or validate this backup file. It may be corrupted or in an incorrect format.'
+      );
+      return false;
+    } finally {
+      setIsValidating(false);
+    }
   };
 
   const scanForBackupFiles = async () => {
@@ -149,6 +208,7 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
         data: {
           bills: [],
           items: [],
+          categories: [],
           settings: {},
         },
       };
@@ -180,7 +240,14 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
     scanForBackupFiles();
   };
 
-  const handleFileSelect = (file: { name: string; path: string; size: number }) => {
+  const handleFileSelect = async (file: { name: string; path: string; size: number }) => {
+    // Validate the file before selecting
+    const isValid = await validateBackupFile(file.path);
+    
+    if (!isValid) {
+      return;
+    }
+
     setSelectedFile({
       name: file.name,
       uri: file.path,
@@ -190,7 +257,7 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
     const fileSizeKB = (file.size / 1024).toFixed(2);
     Alert.alert(
       'File Selected',
-      `${file.name}\nSize: ${fileSizeKB} KB`,
+      `${file.name}\nSize: ${fileSizeKB} KB\n\nFile validated successfully!`,
       [{ text: 'OK' }]
     );
   };
@@ -199,8 +266,18 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
     setShowConfirmModal(true);
   };
 
-  const handleConfirmRestore = () => {
+  const handleConfirmRestore = async () => {
     setShowConfirmModal(false);
+    
+    // Save current timestamp as last restore attempt
+    try {
+      await saveBusinessSettings({
+        last_restore_date: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error('Failed to save restore date:', error);
+    }
+
     navigation.navigate('RestoringData', {
       fileName: selectedFile?.name || 'backup_14Sep2025.backup',
     });
@@ -209,6 +286,24 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
   const handleCancelRestore = () => {
     setShowConfirmModal(false);
   };
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    } catch {
+      return dateString;
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -235,6 +330,12 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
 
         <Text style={styles.title}>Restore Data</Text>
         <Text style={styles.subtitle}>Restore from backup file</Text>
+        
+        {lastRestoreDate && (
+          <Text style={styles.lastRestoreText}>
+            Last restore: {formatDate(lastRestoreDate)}
+          </Text>
+        )}
       </Animated.View>
 
       <View style={styles.content}>
@@ -246,6 +347,7 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
             style={styles.filePicker}
             onPress={handleSelectFile}
             activeOpacity={0.7}
+            disabled={isValidating}
           >
             {!selectedFile ? (
               // No file selected state
@@ -295,20 +397,24 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
         <TouchableOpacity
           style={[
             styles.restoreButton,
-            !selectedFile && styles.restoreButtonDisabled,
+            (!selectedFile || isValidating) && styles.restoreButtonDisabled,
           ]}
           onPress={handleRestoreData}
-          disabled={!selectedFile}
+          disabled={!selectedFile || isValidating}
           activeOpacity={0.9}
         >
-          <Text
-            style={[
-              styles.restoreButtonText,
-              !selectedFile && styles.restoreButtonTextDisabled,
-            ]}
-          >
-            Restore Data
-          </Text>
+          {isValidating ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text
+              style={[
+                styles.restoreButtonText,
+                !selectedFile && styles.restoreButtonTextDisabled,
+              ]}
+            >
+              Restore Data
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -330,6 +436,7 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
                   style={styles.fileItem}
                   onPress={() => handleFileSelect(file)}
                   activeOpacity={0.7}
+                  disabled={isValidating}
                 >
                   <View style={styles.fileIconContainer}>
                     <View style={styles.fileIcon} />
@@ -340,6 +447,9 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
                       {(file.size / 1024).toFixed(2)} KB
                     </Text>
                   </View>
+                  {isValidating && (
+                    <ActivityIndicator size="small" color="#C62828" />
+                  )}
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -347,6 +457,7 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setShowFileListModal(false)}
+              disabled={isValidating}
             >
               <Text style={styles.closeButtonText}>Cancel</Text>
             </TouchableOpacity>
@@ -364,6 +475,9 @@ const RestoreDataScreen: React.FC<RestoreDataScreenProps> = ({ navigation }) => 
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
             <Text style={styles.modalTitle}>Confirm Restore</Text>
+            <Text style={styles.modalSubtitle}>
+              This will replace all current data with the backup file. This action cannot be undone.
+            </Text>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -393,6 +507,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   header: {
     paddingHorizontal: 20,
@@ -431,6 +554,11 @@ const styles = StyleSheet.create({
     color: '#999999',
     letterSpacing: -0.31,
     lineHeight: 24,
+  },
+  lastRestoreText: {
+    fontSize: 14,
+    color: '#999999',
+    marginTop: 8,
   },
   content: {
     flex: 1,
@@ -719,7 +847,14 @@ const styles = StyleSheet.create({
     color: '#333333',
     letterSpacing: -0.26,
     textAlign: 'center',
-    marginBottom: 32,
+    marginBottom: 12,
+  },
+  modalSubtitle: {
+    fontSize: 16,
+    color: '#666666',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 24,
   },
   modalButtons: {
     gap: 12,

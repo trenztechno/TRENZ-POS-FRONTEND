@@ -9,93 +9,73 @@ import {
   ScrollView,
   TextInput,
   Modal,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, MenuItem } from '../types/business.types';
 import Icon from 'react-native-vector-icons/Ionicons';
+import { getItems, getCategories, deleteItem } from '../services/storage';
 
 type ItemManagementScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ItemManagement'>;
 };
 
-// Demo menu items
-const DEMO_ITEMS: MenuItem[] = [
-  { id: '1', name: 'Idli', price: 40, category: 'Rice & Dosa', image: '' },
-  { id: '2', name: 'Plain Dosa', price: 60, category: 'Rice & Dosa', image: '' },
-  { id: '3', name: 'Masala Dosa', price: 80, category: 'Rice & Dosa', image: '' },
-  { id: '4', name: 'Onion Dosa', price: 70, category: 'Rice & Dosa', image: '' },
-  { id: '5', name: 'Ghee Roast', price: 90, category: 'Rice & Dosa', image: '' },
-  { id: '6', name: 'Vada', price: 35, category: 'Rice & Dosa', image: '' },
-  { id: '7', name: 'Poori Masala', price: 60, category: 'Rice & Dosa', image: '' },
-  { id: '8', name: 'Curd Rice', price: 70, category: 'Rice & Dosa', image: '' },
-  { id: '9', name: 'Sambar Rice', price: 90, category: 'Rice & Dosa', image: '' },
-  { id: '10', name: 'Vegetable Biryani', price: 150, category: 'Rice & Dosa', image: '' },
-  { id: '11', name: 'Veg Meals', price: 120, category: 'Rice & Dosa', image: '' },
-  { id: '12', name: 'Chicken Biryani', price: 200, category: 'Rice & Dosa', image: '' },
-  { id: '13', name: 'Mutton Biryani', price: 280, category: 'Rice & Dosa', image: '' },
-  { id: '14', name: 'Chapati', price: 30, category: 'Chapati & Curry', image: '' },
-  { id: '15', name: 'Naan', price: 40, category: 'Chapati & Curry', image: '' },
-  { id: '16', name: 'Butter Naan', price: 50, category: 'Chapati & Curry', image: '' },
-  { id: '17', name: 'Parotta', price: 35, category: 'Chapati & Curry', image: '' },
-  { id: '18', name: 'Kothu Parotta', price: 80, category: 'Chapati & Curry', image: '' },
-  { id: '19', name: 'Paneer Butter Masala', price: 180, category: 'Chapati & Curry', image: '' },
-  { id: '20', name: 'Veg Kurma', price: 120, category: 'Chapati & Curry', image: '' },
-  { id: '21', name: 'Egg Curry', price: 100, category: 'Chapati & Curry', image: '' },
-  { id: '22', name: 'Chicken Gravy', price: 180, category: 'Chapati & Curry', image: '' },
-  { id: '23', name: 'Chicken Butter Masala', price: 200, category: 'Chapati & Curry', image: '' },
-  { id: '24', name: 'Chicken Chettinad', price: 220, category: 'Chapati & Curry', image: '' },
-  { id: '25', name: 'Tea', price: 20, category: 'Tea & Coffee', image: '' },
-  { id: '26', name: 'Coffee', price: 25, category: 'Tea & Coffee', image: '' },
-  { id: '27', name: 'Filter Coffee', price: 30, category: 'Tea & Coffee', image: '' },
-  { id: '28', name: 'Masala Tea', price: 25, category: 'Tea & Coffee', image: '' },
-  { id: '29', name: 'Vanilla Ice Cream', price: 60, category: 'Ice Cream', image: '' },
-  { id: '30', name: 'Chocolate Ice Cream', price: 70, category: 'Ice Cream', image: '' },
-  { id: '31', name: 'Strawberry Ice Cream', price: 70, category: 'Ice Cream', image: '' },
-  { id: '32', name: 'Butterscotch Ice Cream', price: 75, category: 'Ice Cream', image: '' },
-  { id: '33', name: 'Kulfi', price: 50, category: 'Ice Cream', image: '' },
-];
-
-const CATEGORIES = ['All Items', 'Rice & Dosa', 'Chapati & Curry', 'Tea & Coffee', 'Ice Cream'];
-
 const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation }) => {
-  // ALL HOOKS MUST BE AT THE TOP - NEVER CONDITIONAL!
-  const [items, setItems] = useState<MenuItem[]>(DEMO_ITEMS);
-  const [filteredItems, setFilteredItems] = useState<MenuItem[]>(DEMO_ITEMS);
+  const [items, setItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All Items']);
+  const [filteredItems, setFilteredItems] = useState<MenuItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Items');
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<MenuItem | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const headerAnim = useRef(new Animated.Value(0)).current;
   const searchAnim = useRef(new Animated.Value(0)).current;
   const filtersAnim = useRef(new Animated.Value(0)).current;
   const listAnim = useRef(new Animated.Value(0)).current;
 
-  // Effects
   useEffect(() => {
-    Animated.stagger(100, [
-      Animated.timing(headerAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(searchAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(filtersAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(listAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [headerAnim, searchAnim, filtersAnim, listAnim]);
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Reload data when screen comes into focus (after adding/editing item)
+      loadData();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.stagger(100, [
+        Animated.timing(headerAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(searchAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(filtersAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(listAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
 
   useEffect(() => {
     let filtered = items;
@@ -107,23 +87,67 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
     }
 
     if (selectedCategory !== 'All Items') {
-      filtered = filtered.filter((item) => item.category === selectedCategory);
+      filtered = filtered.filter((item) => {
+        // Check both category (old) and category_ids (new)
+        if (item.category_ids && item.category_ids.length > 0) {
+          // Find category name from categories array
+          const categoryNames = item.categories?.map(c => c.name) || [];
+          return categoryNames.includes(selectedCategory);
+        }
+        return item.category === selectedCategory;
+      });
     }
 
     setFilteredItems(filtered);
   }, [searchQuery, selectedCategory, items]);
 
-  // Handlers
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+
+      // Load items from database
+      const itemsData = await getItems();
+      setItems(itemsData);
+
+      // Load categories from database
+      const categoriesData = await getCategories();
+      const categoryNames = categoriesData.map(cat => cat.name);
+      setCategories(['All Items', ...categoryNames]);
+
+    } catch (error) {
+      console.error('Failed to load data:', error);
+      Alert.alert('Error', 'Failed to load items and categories');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleDeleteItem = (item: MenuItem) => {
     setItemToDelete(item);
     setDeleteModalVisible(true);
   };
 
-  const confirmDelete = () => {
-    if (itemToDelete) {
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    try {
+      setIsDeleting(true);
+
+      // Delete from database
+      await deleteItem(itemToDelete.id);
+
+      // Update local state
       setItems(items.filter((item) => item.id !== itemToDelete.id));
+      
       setDeleteModalVisible(false);
       setItemToDelete(null);
+
+      Alert.alert('Success', 'Item deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete item:', error);
+      Alert.alert('Error', 'Failed to delete item. Please try again.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -139,6 +163,25 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
   const handleAddItem = () => {
     navigation.navigate('AddItem');
   };
+
+  const getCategoryDisplay = (item: MenuItem) => {
+    if (item.categories && item.categories.length > 0) {
+      if (item.categories.length === 1) {
+        return item.categories[0].name;
+      }
+      return `${item.categories[0].name} +${item.categories.length - 1}`;
+    }
+    return item.category || 'No Category';
+  };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading items...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -227,7 +270,7 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
           contentContainerStyle={styles.filtersContent}
           style={styles.filters}
         >
-          {CATEGORIES.map((category) => (
+          {categories.map((category) => (
             <TouchableOpacity
               key={category}
               style={[
@@ -271,38 +314,54 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.list}
         >
-          {filteredItems.map((item) => (
-            <View key={item.id} style={styles.itemCard}>
-              <View style={styles.itemImage}>
-                <Icon name="restaurant-outline" size={32} color="#C62828" />
-              </View>
-
-              <View style={styles.itemInfo}>
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemName}>{item.name}</Text>
-                  <TouchableOpacity
-                    onPress={() => handleEditItem(item)}
-                    activeOpacity={0.7}
-                    style={styles.editButton}
-                  >
-                    <Icon name="pencil-outline" size={20} color="#C62828" />
-                  </TouchableOpacity>
+          {filteredItems.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Icon name="restaurant-outline" size={64} color="#E0E0E0" />
+              <Text style={styles.emptyText}>No items found</Text>
+              <Text style={styles.emptySubtext}>
+                {searchQuery || selectedCategory !== 'All Items'
+                  ? 'Try adjusting your filters'
+                  : 'Tap "Add Item" to create your first item'}
+              </Text>
+            </View>
+          ) : (
+            filteredItems.map((item) => (
+              <View key={item.id} style={styles.itemCard}>
+                <View style={styles.itemImage}>
+                  {item.image_url || item.image_path || item.image ? (
+                    <Text style={styles.imagePlaceholder}>IMG</Text>
+                  ) : (
+                    <Icon name="restaurant-outline" size={32} color="#C62828" />
+                  )}
                 </View>
 
-                <Text style={styles.itemPrice}>₹{item.price}</Text>
-                <Text style={styles.itemCategory}>{item.category}</Text>
+                <View style={styles.itemInfo}>
+                  <View style={styles.itemHeader}>
+                    <Text style={styles.itemName}>{item.name}</Text>
+                    <TouchableOpacity
+                      onPress={() => handleEditItem(item)}
+                      activeOpacity={0.7}
+                      style={styles.editButton}
+                    >
+                      <Icon name="pencil-outline" size={20} color="#C62828" />
+                    </TouchableOpacity>
+                  </View>
 
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  onPress={() => handleDeleteItem(item)}
-                  activeOpacity={0.7}
-                >
-                  <Icon name="trash-outline" size={16} color="#EF5350" />
-                  <Text style={styles.deleteText}>Delete Item</Text>
-                </TouchableOpacity>
+                  <Text style={styles.itemPrice}>₹{item.price.toFixed(2)}</Text>
+                  <Text style={styles.itemCategory}>{getCategoryDisplay(item)}</Text>
+
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeleteItem(item)}
+                    activeOpacity={0.7}
+                  >
+                    <Icon name="trash-outline" size={16} color="#EF5350" />
+                    <Text style={styles.deleteText}>Delete Item</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            </View>
-          ))}
+            ))
+          )}
         </ScrollView>
       </Animated.View>
 
@@ -331,17 +390,23 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.deleteConfirmButton}
+                style={[styles.deleteConfirmButton, isDeleting && styles.deleteConfirmButtonDisabled]}
                 onPress={confirmDelete}
                 activeOpacity={0.9}
+                disabled={isDeleting}
               >
-                <Text style={styles.deleteConfirmText}>Yes, Delete Item</Text>
+                {isDeleting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.deleteConfirmText}>Yes, Delete Item</Text>
+                )}
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={cancelDelete}
                 activeOpacity={0.7}
+                disabled={isDeleting}
               >
                 <Text style={styles.cancelText}>Cancel</Text>
               </TouchableOpacity>
@@ -357,6 +422,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   header: {
     paddingHorizontal: 20,
@@ -450,6 +524,24 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingBottom: 100,
   },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  emptyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#999999',
+    marginTop: 16,
+  },
+  emptySubtext: {
+    fontSize: 16,
+    color: '#CCCCCC',
+    marginTop: 8,
+    textAlign: 'center',
+    paddingHorizontal: 40,
+  },
   itemCard: {
     flexDirection: 'row',
     backgroundColor: '#FFFFFF',
@@ -471,6 +563,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  imagePlaceholder: {
+    fontSize: 14,
+    color: '#999999',
+    fontWeight: '600',
   },
   itemInfo: {
     flex: 1,
@@ -581,6 +678,9 @@ const styles = StyleSheet.create({
     height: 48,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  deleteConfirmButtonDisabled: {
+    opacity: 0.6,
   },
   deleteConfirmText: {
     fontSize: 16,

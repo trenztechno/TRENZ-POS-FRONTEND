@@ -9,9 +9,11 @@ import {
   Switch,
   Animated,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type PrinterSetupScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'PrinterSetup'>;
@@ -23,27 +25,63 @@ type ConnectionStatus = 'connected' | 'disconnected' | 'connecting' | 'disconnec
 
 const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) => {
   const [selectedPrinter, setSelectedPrinter] = useState<PrinterModel>('Epson TM-T82');
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connected');
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
   const [selectedPaperSize, setSelectedPaperSize] = useState<PaperSize>('58mm');
-  const [autoPrint, setAutoPrint] = useState(true);
+  const [autoPrint, setAutoPrint] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSavingPrinter, setIsSavingPrinter] = useState(false);
+  const [isSavingPaperSize, setIsSavingPaperSize] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadPrinterSettings();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
+
+  const loadPrinterSettings = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings) {
+        if (settings.printer_name) {
+          setSelectedPrinter(settings.printer_name as PrinterModel);
+        }
+        if (settings.paper_size) {
+          setSelectedPaperSize(settings.paper_size as PaperSize);
+        }
+        if (settings.auto_print !== undefined) {
+          setAutoPrint(settings.auto_print === 1);
+        }
+        if (settings.printer_connected !== undefined) {
+          setConnectionStatus(settings.printer_connected === 1 ? 'connected' : 'disconnected');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load printer settings:', error);
+      Alert.alert('Error', 'Failed to load printer settings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const printers: PrinterModel[] = [
     'Epson TM-T82',
@@ -58,31 +96,89 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
     { value: 'A4', label: 'A4 Sheet' },
   ];
 
-  const handleApplyPrinter = () => {
-    // Apply printer selection
-    console.log('Applied printer:', selectedPrinter);
+  const handleApplyPrinter = async () => {
+    try {
+      setIsSavingPrinter(true);
+      
+      await saveBusinessSettings({
+        printer_name: selectedPrinter,
+      });
+
+      Alert.alert('Success', 'Printer updated successfully!');
+    } catch (error) {
+      console.error('Failed to save printer:', error);
+      Alert.alert('Error', 'Failed to save printer. Please try again.');
+    } finally {
+      setIsSavingPrinter(false);
+    }
   };
 
-  const handleToggleConnection = (value: boolean) => {
+  const handleToggleConnection = async (value: boolean) => {
     if (value) {
       setConnectionStatus('connecting');
-      setTimeout(() => {
-        setConnectionStatus('connected');
+      setTimeout(async () => {
+        try {
+          await saveBusinessSettings({
+            printer_connected: 1,
+          });
+          setConnectionStatus('connected');
+        } catch (error) {
+          console.error('Failed to save connection status:', error);
+          setConnectionStatus('disconnected');
+          Alert.alert('Error', 'Failed to connect to printer');
+        }
       }, 2000);
     } else {
       setConnectionStatus('disconnecting');
-      setTimeout(() => {
-        setConnectionStatus('disconnected');
+      setTimeout(async () => {
+        try {
+          await saveBusinessSettings({
+            printer_connected: 0,
+          });
+          setConnectionStatus('disconnected');
+        } catch (error) {
+          console.error('Failed to save connection status:', error);
+          setConnectionStatus('connected');
+          Alert.alert('Error', 'Failed to disconnect printer');
+        }
       }, 2000);
     }
   };
 
   const handleTestPrint = () => {
-    navigation.navigate('TestPrintPreview')
+    navigation.navigate('TestPrintPreview');
   };
 
-  const handleApplyPaperSize = () => {
-    console.log('Applied paper size:', selectedPaperSize);
+  const handleApplyPaperSize = async () => {
+    try {
+      setIsSavingPaperSize(true);
+      
+      await saveBusinessSettings({
+        paper_size: selectedPaperSize,
+      });
+
+      Alert.alert('Success', 'Paper size updated successfully!');
+    } catch (error) {
+      console.error('Failed to save paper size:', error);
+      Alert.alert('Error', 'Failed to save paper size. Please try again.');
+    } finally {
+      setIsSavingPaperSize(false);
+    }
+  };
+
+  const handleAutoPrintToggle = async (value: boolean) => {
+    try {
+      setAutoPrint(value);
+      
+      await saveBusinessSettings({
+        auto_print: value ? 1 : 0,
+      });
+    } catch (error) {
+      console.error('Failed to save auto print setting:', error);
+      // Revert on error
+      setAutoPrint(!value);
+      Alert.alert('Error', 'Failed to save auto print setting');
+    }
   };
 
   const getConnectionText = () => {
@@ -109,6 +205,15 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
   const isConnectionLoading = () => {
     return connectionStatus === 'connecting' || connectionStatus === 'disconnecting';
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading printer settings...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -169,6 +274,7 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
                 style={styles.radioOption}
                 onPress={() => setSelectedPrinter(printer)}
                 activeOpacity={0.7}
+                disabled={isSavingPrinter}
               >
                 <View style={styles.radioButton}>
                   {selectedPrinter === printer && (
@@ -181,11 +287,16 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
           </View>
 
           <TouchableOpacity
-            style={styles.applyButton}
+            style={[styles.applyButton, isSavingPrinter && styles.buttonDisabled]}
             onPress={handleApplyPrinter}
             activeOpacity={0.9}
+            disabled={isSavingPrinter}
           >
-            <Text style={styles.applyButtonText}>Apply Printer</Text>
+            {isSavingPrinter ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.applyButtonText}>Apply Printer</Text>
+            )}
           </TouchableOpacity>
         </Animated.View>
 
@@ -293,6 +404,7 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
                 style={styles.radioOption}
                 onPress={() => setSelectedPaperSize(size.value)}
                 activeOpacity={0.7}
+                disabled={isSavingPaperSize}
               >
                 <View style={styles.radioButton}>
                   {selectedPaperSize === size.value && (
@@ -305,11 +417,16 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
           </View>
 
           <TouchableOpacity
-            style={styles.applyButton}
+            style={[styles.applyButton, isSavingPaperSize && styles.buttonDisabled]}
             onPress={handleApplyPaperSize}
             activeOpacity={0.9}
+            disabled={isSavingPaperSize}
           >
-            <Text style={styles.applyButtonText}>Apply Paper Size</Text>
+            {isSavingPaperSize ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.applyButtonText}>Apply Paper Size</Text>
+            )}
           </TouchableOpacity>
         </Animated.View>
 
@@ -341,7 +458,7 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
 
             <Switch
               value={autoPrint}
-              onValueChange={setAutoPrint}
+              onValueChange={handleAutoPrintToggle}
               trackColor={{ false: '#E0E0E0', true: '#C62828' }}
               thumbColor="#FFFFFF"
               ios_backgroundColor="#E0E0E0"
@@ -357,6 +474,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   header: {
     paddingHorizontal: 20,
@@ -467,6 +593,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   applyButtonText: {
     fontSize: 16,

@@ -8,10 +8,12 @@ import {
   ScrollView,
   Animated,
   TextInput,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import CalenderIcon from '../assets/icons/CalenderIcon.svg';
 import { RootStackParamList } from '../types/business.types';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type SelectSummaryDateScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SelectSummaryDate'>;
@@ -22,23 +24,56 @@ type DateRangeOption = 'today' | 'yesterday' | 'last7days' | 'custom';
 const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navigation }) => {
   const [selectedRange, setSelectedRange] = useState<DateRangeOption | null>(null);
   const [customDays, setCustomDays] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadLastPreference();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
+
+  const loadLastPreference = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings) {
+        // Load last selected date range preference
+        if (settings.last_summary_range) {
+          setSelectedRange(settings.last_summary_range as DateRangeOption);
+        }
+        
+        // Load last custom days value
+        if (settings.last_summary_custom_days) {
+          setCustomDays(settings.last_summary_custom_days.toString());
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load summary preferences:', error);
+      // Continue with defaults
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleRangeSelect = (range: DateRangeOption) => {
     setSelectedRange(range);
@@ -47,12 +82,42 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
     }
   };
 
-  const handleApply = () => {
-    // Navigate to downloading screen
-    navigation.navigate('DownloadingSummary', {
-      dateRange: selectedRange || 'today',
-      customDays: customDays || undefined,
-    });
+  const handleApply = async () => {
+    try {
+      setIsSaving(true);
+
+      // Save user's preference to database
+      const saveData: {
+        last_summary_range: string;
+        last_summary_custom_days?: number;
+        last_summary_date: string;
+      } = {
+        last_summary_range: selectedRange || 'today',
+        last_summary_date: new Date().toISOString(),
+      };
+
+      // Save custom days if applicable
+      if (selectedRange === 'custom' && customDays) {
+        saveData.last_summary_custom_days = parseInt(customDays, 10);
+      }
+
+      await saveBusinessSettings(saveData);
+
+      // Navigate to downloading screen
+      navigation.navigate('DownloadingSummary', {
+        dateRange: selectedRange || 'today',
+        customDays: customDays || undefined,
+      });
+    } catch (error) {
+      console.error('Failed to save summary preferences:', error);
+      // Continue with navigation even if save fails
+      navigation.navigate('DownloadingSummary', {
+        dateRange: selectedRange || 'today',
+        customDays: customDays || undefined,
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const isApplyEnabled = selectedRange !== null && (selectedRange !== 'custom' || customDays !== '');
@@ -63,6 +128,15 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
     }
     return '';
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading preferences...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -113,6 +187,7 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
             ]}
             onPress={() => handleRangeSelect('today')}
             activeOpacity={0.9}
+            disabled={isSaving}
           >
             <View
               style={[
@@ -148,6 +223,7 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
             ]}
             onPress={() => handleRangeSelect('yesterday')}
             activeOpacity={0.9}
+            disabled={isSaving}
           >
             <View
               style={[
@@ -183,6 +259,7 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
             ]}
             onPress={() => handleRangeSelect('last7days')}
             activeOpacity={0.9}
+            disabled={isSaving}
           >
             <View
               style={[
@@ -218,6 +295,7 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
             ]}
             onPress={() => handleRangeSelect('custom')}
             activeOpacity={0.9}
+            disabled={isSaving}
           >
             <View
               style={[
@@ -257,6 +335,7 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
                   placeholder="5"
                   placeholderTextColor="rgba(51, 51, 51, 0.5)"
                   keyboardType="numeric"
+                  editable={!isSaving}
                 />
                 <Text style={styles.daysLabel}>Days</Text>
               </View>
@@ -273,13 +352,17 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
         <TouchableOpacity
           style={[
             styles.applyButton,
-            !isApplyEnabled && styles.applyButtonDisabled,
+            (!isApplyEnabled || isSaving) && styles.applyButtonDisabled,
           ]}
           onPress={handleApply}
-          disabled={!isApplyEnabled}
+          disabled={!isApplyEnabled || isSaving}
           activeOpacity={0.9}
         >
-          <Text style={styles.applyButtonText}>Apply</Text>
+          {isSaving ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <Text style={styles.applyButtonText}>Apply</Text>
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -290,6 +373,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   header: {
     paddingHorizontal: 16,

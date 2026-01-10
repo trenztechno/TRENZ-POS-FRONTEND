@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,10 +6,12 @@ import {
   StatusBar,
   TouchableWithoutFeedback,
   Animated,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/business.types';
+import { saveBusinessSettings } from '../services/storage';
 
 type RestoreSuccessScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'RestoreSuccess'>;
@@ -20,37 +22,83 @@ const RestoreSuccessScreen: React.FC<RestoreSuccessScreenProps> = ({
   navigation,
   route,
 }) => {
+  const [isSaving, setIsSaving] = useState(true);
+  const [restoreTime, setRestoreTime] = useState<string>('');
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const checkmarkAnim = useRef(new Animated.Value(0)).current;
 
+  const { fileName } = route.params || {};
+
   useEffect(() => {
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.spring(checkmarkAnim, {
-        toValue: 1,
-        tension: 80,
-        friction: 6,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    saveRestoreCompletion();
   }, []);
 
-  const handleTap = () => {
-    navigation.navigate('BackupData');
+  useEffect(() => {
+    if (!isSaving) {
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.spring(scaleAnim, {
+            toValue: 1,
+            tension: 50,
+            friction: 7,
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.spring(checkmarkAnim, {
+          toValue: 1,
+          tension: 80,
+          friction: 6,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isSaving]);
+
+  const saveRestoreCompletion = async () => {
+    try {
+      const timestamp = new Date().toISOString();
+      setRestoreTime(formatTime(new Date()));
+
+      // Save restore completion timestamp to database
+      await saveBusinessSettings({
+        last_restore_date: timestamp,
+      });
+    } catch (error) {
+      console.error('Failed to save restore completion:', error);
+      // Continue anyway - don't block user
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  const formatTime = (date: Date): string => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes.toString().padStart(2, '0');
+    return `${displayHours}:${displayMinutes} ${ampm}`;
+  };
+
+  const handleTap = () => {
+    navigation.navigate('AdminDashboard');
+  };
+
+  if (isSaving) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#4CAF50" />
+        <Text style={styles.loadingText}>Finalizing restore...</Text>
+      </View>
+    );
+  }
 
   return (
     <TouchableWithoutFeedback onPress={handleTap}>
@@ -67,8 +115,10 @@ const RestoreSuccessScreen: React.FC<RestoreSuccessScreenProps> = ({
           ]}
         >
           {/* Header */}
-          <Text style={styles.title}>Restore Data</Text>
-          <Text style={styles.subtitle}>Restore from backup file</Text>
+          <View style={styles.header}>
+            <Text style={styles.title}>Restore Data</Text>
+            <Text style={styles.subtitle}>Restore from backup file</Text>
+          </View>
 
           {/* Success Icon */}
           <View style={styles.iconContainer}>
@@ -87,10 +137,23 @@ const RestoreSuccessScreen: React.FC<RestoreSuccessScreenProps> = ({
           </View>
 
           {/* Success Messages */}
-          <Text style={styles.successMessage}>Data restored successfully</Text>
-          <Text style={styles.successDescription}>
-            All data has been recovered from backup
-          </Text>
+          <View style={styles.messageContainer}>
+            <Text style={styles.successMessage}>Data restored successfully</Text>
+            <Text style={styles.successDescription}>
+              All data has been recovered from backup
+            </Text>
+            
+            {fileName && (
+              <Text style={styles.fileName}>File: {fileName}</Text>
+            )}
+            
+            {restoreTime && (
+              <Text style={styles.restoreTime}>Completed at {restoreTime}</Text>
+            )}
+          </View>
+
+          {/* Tap to Continue Hint */}
+          <Text style={styles.tapHint}>Tap anywhere to continue</Text>
         </Animated.View>
       </View>
     </TouchableWithoutFeedback>
@@ -105,10 +168,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  loadingContainer: {
+    gap: 16,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666666',
+  },
   content: {
     alignItems: 'center',
     width: '100%',
-    gap: 48,
+    gap: 32,
+  },
+  header: {
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
     fontSize: 28,
@@ -122,13 +196,13 @@ const styles = StyleSheet.create({
     color: '#999999',
     letterSpacing: -0.31,
     textAlign: 'center',
-    marginTop: -32,
   },
   iconContainer: {
     width: 128,
     height: 128,
     justifyContent: 'center',
     alignItems: 'center',
+    marginVertical: 16,
   },
   successCircle: {
     width: 128,
@@ -154,8 +228,13 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
     transform: [{ rotate: '-45deg' }],
   },
+  messageContainer: {
+    alignItems: 'center',
+    gap: 12,
+  },
   successMessage: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '600',
     color: '#4CAF50',
     letterSpacing: -0.31,
     textAlign: 'center',
@@ -165,7 +244,23 @@ const styles = StyleSheet.create({
     color: '#999999',
     letterSpacing: -0.31,
     textAlign: 'center',
-    marginTop: -32,
+  },
+  fileName: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  restoreTime: {
+    fontSize: 14,
+    color: '#999999',
+    textAlign: 'center',
+  },
+  tapHint: {
+    fontSize: 14,
+    color: '#CCCCCC',
+    textAlign: 'center',
+    marginTop: 24,
   },
 });
 

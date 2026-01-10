@@ -659,6 +659,24 @@ export const saveBusinessSettings = async (data: {
   gst_type?: string;
   item_level_override?: number;
   rounding_rule?: string;
+  invoice_format?: string;
+  gst_breakdown?: number;
+  item_tax_split?: number;
+  total_quantity?: number;
+  payment_method?: number;
+  business_code?: string;
+  logo_path?: string | null;
+  paper_size?: string;
+  auto_print?: number;
+  printer_connected?: number;
+  last_restore_date?: string;
+  last_pdf_export_date?: string;
+  last_summary_range?: string;
+  last_summary_custom_days?: number;
+  last_summary_date?: string;
+  admin_pin_set_date?: string;
+  app_launch_count?: number;
+  last_app_launch?: string;
 }): Promise<void> => {
   const timestamp = now();
   
@@ -691,8 +709,13 @@ export const saveBusinessSettings = async (data: {
         `INSERT INTO business_settings 
          (business_name, business_address, business_phone, business_email, tax_rate, currency, 
           bill_prefix, bill_footer_note, printer_name, printer_type, device_id, admin_pin, 
-          gst_type, item_level_override, rounding_rule, is_synced, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          gst_type, item_level_override, rounding_rule, invoice_format, 
+          gst_breakdown, item_tax_split, total_quantity, payment_method, business_code, logo_path,
+          paper_size, auto_print, printer_connected, last_restore_date, last_pdf_export_date,
+          last_summary_range, last_summary_custom_days, last_summary_date, admin_pin_set_date,
+          app_launch_count, last_app_launch,
+          is_synced, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.business_name || null,
           data.business_address || null,
@@ -709,6 +732,24 @@ export const saveBusinessSettings = async (data: {
           data.gst_type || 'Inclusive',
           data.item_level_override !== undefined ? data.item_level_override : 1,
           data.rounding_rule || 'nearest',
+          data.invoice_format || 'classic',
+          data.gst_breakdown !== undefined ? data.gst_breakdown : 1,
+          data.item_tax_split !== undefined ? data.item_tax_split : 0,
+          data.total_quantity !== undefined ? data.total_quantity : 1,
+          data.payment_method !== undefined ? data.payment_method : 1,
+          data.business_code || null,
+          data.logo_path !== undefined ? data.logo_path : null,
+          data.paper_size || '58mm',
+          data.auto_print !== undefined ? data.auto_print : 0,
+          data.printer_connected !== undefined ? data.printer_connected : 0,
+          data.last_restore_date || null,
+          data.last_pdf_export_date || null,
+          data.last_summary_range || null,
+          data.last_summary_custom_days || null,
+          data.last_summary_date || null,
+          data.admin_pin_set_date || null,
+          data.app_launch_count || 0,
+          data.last_app_launch || null,
           0,
           timestamp,
           timestamp,

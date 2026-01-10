@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -6,11 +6,12 @@ import {
   TouchableOpacity,
   Animated,
   StatusBar,
-  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import BillingIcon from '../assets/icons/BillingIcon.svg';
 import { RootStackParamList } from '../types/business.types';
+import { getBusinessSettings } from '../services/storage';
 
 type ModeSelectionScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ModeSelection'>;
@@ -19,15 +20,40 @@ type ModeSelectionScreenProps = {
 const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({
   navigation,
 }) => {
+  const [businessName, setBusinessName] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(true);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 400,
-      useNativeDriver: true,
-    }).start();
+    loadBusinessInfo();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isLoading]);
+
+  const loadBusinessInfo = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings && settings.business_name) {
+        setBusinessName(settings.business_name);
+      }
+    } catch (error) {
+      console.error('Failed to load business info:', error);
+      // Continue with empty business name
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleBillingMode = () => {
     navigation.navigate('Billing');
@@ -41,13 +67,27 @@ const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({
     navigation.navigate('Dashboard');
   };
 
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading...</Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {/* Title */}
-        <Text style={styles.title}>Select Mode</Text>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Select Mode</Text>
+          {businessName ? (
+            <Text style={styles.businessName}>{businessName}</Text>
+          ) : null}
+        </View>
 
         {/* Billing Mode - Large Card */}
         <TouchableOpacity
@@ -101,17 +141,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
+  },
   content: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  titleContainer: {
+    marginTop: 86,
+    marginBottom: 32,
   },
   title: {
     fontSize: 28,
     fontWeight: '700',
     color: '#333333',
-    marginTop: 86,
-    marginBottom: 32,
     letterSpacing: 0.382812,
+  },
+  businessName: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: '#999999',
+    marginTop: 4,
+    letterSpacing: -0.3125,
   },
   largeCard: {
     backgroundColor: '#FFFFFF',

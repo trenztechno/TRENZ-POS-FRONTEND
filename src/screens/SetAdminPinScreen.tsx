@@ -8,11 +8,12 @@ import {
   StatusBar,
   TextInput,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LockIcon from '../assets/icons/LockIcon.svg';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+import { saveBusinessSettings } from '../services/storage';
 import CryptoJS from 'crypto-js';
 
 type SetAdminPinScreenProps = {
@@ -24,6 +25,7 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
   const [confirmPin, setConfirmPin] = useState('');
   const [step, setStep] = useState<'enter' | 'confirm'>('enter');
   const [error, setError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -100,15 +102,15 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
 
   const savePin = async () => {
     try {
+      setIsSaving(true);
+      
       const hashedPin = hashPin(pin);
+      const timestamp = new Date().toISOString();
       
-      // Get existing settings
-      const settings = await getBusinessSettings();
-      
-      // Save PIN to business settings
+      // Save PIN and timestamp to business settings
       await saveBusinessSettings({
-        ...settings,
         admin_pin: hashedPin,
+        admin_pin_set_date: timestamp,
       });
 
       Alert.alert(
@@ -124,6 +126,8 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
     } catch (error) {
       console.error('Failed to save PIN:', error);
       Alert.alert('Error', 'Failed to save PIN. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -157,8 +161,9 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
           style={styles.backButton}
           onPress={handleBack}
           activeOpacity={0.7}
+          disabled={isSaving}
         >
-          <Text style={styles.backText}>← Back</Text>
+          <Text style={[styles.backText, isSaving && styles.disabledText]}>← Back</Text>
         </TouchableOpacity>
 
         {/* Lock Icon */}
@@ -204,19 +209,28 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
               keyboardType="number-pad"
               maxLength={4}
               secureTextEntry
+              editable={!isSaving}
             />
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
           </View>
 
           {/* Continue Button */}
           <TouchableOpacity
-            style={styles.continueButton}
+            style={[
+              styles.continueButton,
+              isSaving && styles.continueButtonDisabled,
+            ]}
             onPress={handleContinue}
             activeOpacity={0.9}
+            disabled={isSaving}
           >
-            <Text style={styles.continueButtonText}>
-              {step === 'enter' ? 'Continue' : 'Set PIN'}
-            </Text>
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.continueButtonText}>
+                {step === 'enter' ? 'Continue' : 'Set PIN'}
+              </Text>
+            )}
           </TouchableOpacity>
 
           {/* Info Text */}
@@ -226,6 +240,13 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
               : 'Make sure both PINs match'}
           </Text>
         </Animated.View>
+
+        {/* Security Note */}
+        <View style={styles.securityNote}>
+          <Text style={styles.securityNoteText}>
+            🔒 Your PIN is encrypted and stored securely
+          </Text>
+        </View>
       </Animated.View>
     </View>
   );
@@ -249,6 +270,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#C62828',
     letterSpacing: -0.3125,
+  },
+  disabledText: {
+    opacity: 0.5,
   },
   iconContainer: {
     alignItems: 'center',
@@ -338,6 +362,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
+  continueButtonDisabled: {
+    opacity: 0.6,
+  },
   continueButtonText: {
     fontSize: 16,
     fontWeight: '600',
@@ -350,6 +377,16 @@ const styles = StyleSheet.create({
     color: '#666666',
     textAlign: 'center',
     letterSpacing: -0.0761719,
+  },
+  securityNote: {
+    marginTop: 24,
+    paddingHorizontal: 32,
+  },
+  securityNoteText: {
+    fontSize: 14,
+    color: '#666666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 
