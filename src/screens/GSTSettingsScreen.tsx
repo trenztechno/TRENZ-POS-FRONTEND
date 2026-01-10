@@ -9,9 +9,12 @@ import {
   TextInput,
   Switch,
   Animated,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
+import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type GSTSettingsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'GSTSettings'>;
@@ -21,28 +24,102 @@ type GSTType = 'Inclusive' | 'Exclusive';
 type RoundingRule = 'nearest' | 'up' | 'down' | 'none';
 
 const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => {
-  const [gstPercent, setGstPercent] = useState('5');
+  const [gstPercent, setGstPercent] = useState('18');
   const [itemLevelOverride, setItemLevelOverride] = useState(true);
   const [gstType, setGstType] = useState<GSTType>('Inclusive');
   const [roundingRule, setRoundingRule] = useState<RoundingRule>('nearest');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadGSTSettings();
   }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [isLoading]);
+
+  const loadGSTSettings = async () => {
+    try {
+      setIsLoading(true);
+      const settings = await getBusinessSettings();
+      
+      if (settings) {
+        // Load tax_rate as gst percent
+        if (settings.tax_rate !== undefined) {
+          setGstPercent((settings.tax_rate * 100).toString());
+        }
+        
+        // Load other GST settings if they exist
+        if (settings.gst_type) {
+          setGstType(settings.gst_type as GSTType);
+        }
+        if (settings.item_level_override !== undefined) {
+          setItemLevelOverride(settings.item_level_override === 1);
+        }
+        if (settings.rounding_rule) {
+          setRoundingRule(settings.rounding_rule as RoundingRule);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load GST settings:', error);
+      Alert.alert('Error', 'Failed to load GST settings');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    const percent = parseFloat(gstPercent);
+    
+    if (isNaN(percent) || percent < 0 || percent > 100) {
+      Alert.alert('Invalid GST', 'Please enter a valid GST percentage (0-100)');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      
+      await saveBusinessSettings({
+        tax_rate: percent / 100, // Store as decimal (e.g., 0.18 for 18%)
+        gst_type: gstType,
+        item_level_override: itemLevelOverride ? 1 : 0,
+        rounding_rule: roundingRule,
+      });
+
+      Alert.alert(
+        'Success',
+        'GST settings updated successfully!',
+        [
+          {
+            text: 'OK',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Failed to save GST settings:', error);
+      Alert.alert('Error', 'Failed to save GST settings. Please try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const getGstTypeDescription = () => {
     if (gstType === 'Inclusive') {
@@ -51,6 +128,15 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
       return '✓ GST will be added on top of prices';
     }
   };
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color="#C62828" />
+        <Text style={styles.loadingText}>Loading GST settings...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -113,7 +199,8 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
               value={gstPercent}
               onChangeText={setGstPercent}
               keyboardType="numeric"
-              maxLength={2}
+              maxLength={5}
+              editable={!isSaving}
             />
             <Text style={styles.percentSymbol}>%</Text>
           </View>
@@ -151,6 +238,7 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
               trackColor={{ false: '#E0E0E0', true: '#C62828' }}
               thumbColor="#FFFFFF"
               ios_backgroundColor="#E0E0E0"
+              disabled={isSaving}
             />
           </View>
         </Animated.View>
@@ -183,8 +271,9 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
                 styles.gstTypeButton,
                 gstType === 'Inclusive' && styles.gstTypeButtonSelected,
               ]}
-              onPress={() => setGstType('Inclusive')}
+              onPress={() => !isSaving && setGstType('Inclusive')}
               activeOpacity={0.9}
+              disabled={isSaving}
             >
               <Text
                 style={[
@@ -201,8 +290,9 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
                 styles.gstTypeButton,
                 gstType === 'Exclusive' && styles.gstTypeButtonSelected,
               ]}
-              onPress={() => setGstType('Exclusive')}
+              onPress={() => !isSaving && setGstType('Exclusive')}
               activeOpacity={0.9}
+              disabled={isSaving}
             >
               <Text
                 style={[
@@ -250,8 +340,9 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
                 styles.roundingButton,
                 roundingRule === 'nearest' && styles.roundingButtonSelected,
               ]}
-              onPress={() => setRoundingRule('nearest')}
+              onPress={() => !isSaving && setRoundingRule('nearest')}
               activeOpacity={0.9}
+              disabled={isSaving}
             >
               <Text
                 style={[
@@ -268,8 +359,9 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
                 styles.roundingButton,
                 roundingRule === 'up' && styles.roundingButtonSelected,
               ]}
-              onPress={() => setRoundingRule('up')}
+              onPress={() => !isSaving && setRoundingRule('up')}
               activeOpacity={0.9}
+              disabled={isSaving}
             >
               <Text
                 style={[
@@ -286,8 +378,9 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
                 styles.roundingButton,
                 roundingRule === 'down' && styles.roundingButtonSelected,
               ]}
-              onPress={() => setRoundingRule('down')}
+              onPress={() => !isSaving && setRoundingRule('down')}
               activeOpacity={0.9}
+              disabled={isSaving}
             >
               <Text
                 style={[
@@ -304,8 +397,9 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
                 styles.roundingButton,
                 roundingRule === 'none' && styles.roundingButtonSelected,
               ]}
-              onPress={() => setRoundingRule('none')}
+              onPress={() => !isSaving && setRoundingRule('none')}
               activeOpacity={0.9}
+              disabled={isSaving}
             >
               <Text
                 style={[
@@ -318,6 +412,29 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
             </TouchableOpacity>
           </View>
         </Animated.View>
+
+        {/* Save Button */}
+        <Animated.View
+          style={[
+            styles.saveButtonContainer,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+            onPress={handleSaveSettings}
+            activeOpacity={0.9}
+            disabled={isSaving}
+          >
+            {isSaving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.saveButtonText}>Save Settings</Text>
+            )}
+          </TouchableOpacity>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -327,6 +444,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#666666',
   },
   header: {
     paddingHorizontal: 20,
@@ -493,6 +619,26 @@ const styles = StyleSheet.create({
   },
   roundingButtonTextSelected: {
     color: '#C62828',
+  },
+  saveButtonContainer: {
+    marginTop: 8,
+  },
+  saveButton: {
+    backgroundColor: '#C62828',
+    height: 52,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    letterSpacing: -0.31,
+    lineHeight: 24,
   },
 });
 
