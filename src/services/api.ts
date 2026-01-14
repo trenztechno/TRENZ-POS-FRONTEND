@@ -3,9 +3,7 @@ import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { getAuthToken } from './auth';
 
 // API Configuration
-const API_BASE_URL = __DEV__ 
-  ? 'http://localhost:8000'  // Development
-  : 'https://your-production-server.com';  // Production
+const API_BASE_URL = 'http://13.201.93.108:8000';
 
 const API_TIMEOUT = 30000; // 30 seconds
 
