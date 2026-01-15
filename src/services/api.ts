@@ -66,11 +66,10 @@ export const API = {
       email: string;
       password: string;
       password_confirm: string;
-      first_name?: string;
-      last_name?: string;
-      business_name?: string;
-      phone?: string;
-      address?: string;
+      business_name: string;
+      phone: string;
+      address: string;
+      gst_number?: string;
     }): Promise<any> => {
       const response = await apiClient.post('/auth/register', data);
       return response.data;

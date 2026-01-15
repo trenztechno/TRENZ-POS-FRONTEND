@@ -4,6 +4,7 @@ import {NativeStackNavigationProp} from '@react-navigation/native-stack';
 import StoreIcon from '../assets/icons/store.svg';
 import type {RootStackParamList} from '../types/business.types';
 import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+import { checkAuthStatus } from '../services/auth';
 
 type SplashScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Splash'>;
@@ -162,16 +163,16 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
 
   const navigateToAppropriateScreen = async () => {
     try {
-      const settings = await getBusinessSettings();
+      // Check authentication status first
+      const authStatus = await checkAuthStatus();
       
-      // Check if business is set up
-      const isBusinessSetup = settings?.business_name && settings.business_name.length > 0;
-      
-      if (isBusinessSetup) {
-        // Business is set up - go to mode selection
+      if (authStatus.isAuthenticated && authStatus.userData) {
+        // User is logged in - go directly to mode selection
+        console.log('User is authenticated:', authStatus.userData.username);
         navigation.replace('ModeSelection');
       } else {
-        // Business not set up - go to welcome/onboarding
+        // User not logged in - go to welcome screen
+        console.log('User not authenticated - showing welcome');
         navigation.replace('Welcome');
       }
     } catch (error) {

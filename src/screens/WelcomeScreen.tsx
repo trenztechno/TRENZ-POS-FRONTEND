@@ -141,31 +141,13 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
   };
 
   const handleCreateBusiness = async () => {
-    try {
-      // Track which option was selected
-      await saveBusinessSettings({
-        onboarding_path: 'create_new',
-        onboarding_started_date: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('Failed to track onboarding path:', error);
-      // Continue anyway
-    }
-    navigation.navigate('BusinessSetup1');
+    // Navigate to signup screen
+    navigation.navigate('Signup');
   };
 
   const handleJoinBusiness = async () => {
-    try {
-      // Track which option was selected
-      await saveBusinessSettings({
-        onboarding_path: 'join_existing',
-        onboarding_started_date: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error('Failed to track onboarding path:', error);
-      // Continue anyway
-    }
-    navigation.navigate('JoinBusiness');
+    // Navigate to login screen
+    navigation.navigate('Login');
   };
 
   if (isLoading) {
@@ -214,8 +196,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
           ]}>
           <Text style={styles.subtitle}>
             {isReturningUser 
-              ? 'Continue setting up your POS system' 
-              : 'Get started with your POS system'}
+              ? 'Sign in or create an account' 
+              : 'Sign up to get started with your POS'}
           </Text>
         </Animated.View>
       </View>
@@ -229,12 +211,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
           },
         ]}>
         <AnimatedButton
-          title="Create New Business"
+          title="Sign Up"
           onPress={handleCreateBusiness}
           variant="primary"
         />
         <AnimatedButton
-          title="Join Existing Business"
+          title="Login"
           onPress={handleJoinBusiness}
           variant="secondary"
         />

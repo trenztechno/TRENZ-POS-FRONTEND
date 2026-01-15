@@ -52,14 +52,11 @@ export interface BillData {
 export type RootStackParamList = {
   Splash: undefined;
   Welcome: undefined;
-  BusinessSetup1: undefined;
-  BusinessSetupStep2: { businessData: any };
-  BusinessSetupStep3: { businessData: any };
-  CreatingBusiness: { businessData: any };
+  Login: undefined;
+  Signup: undefined;
   SetupSuccess: { businessName?: string };
   SetupFailure: { error: string };
   ModeSelection: undefined;
-  JoinBusiness: undefined;
   
   // Billing flow
   Billing: undefined;

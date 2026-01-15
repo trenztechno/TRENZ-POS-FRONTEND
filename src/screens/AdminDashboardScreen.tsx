@@ -13,7 +13,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
 import { getBusinessSettings } from '../services/storage';
-import { getUserData } from '../services/auth';
+import { getUserData, logout } from '../services/auth';
 
 type AdminDashboardScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'AdminDashboard'>;
@@ -133,6 +133,36 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
 
   const handleBillFormat = () => {
     navigation.navigate('BillFormat');
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await logout();
+              // Navigate to Welcome screen
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'Welcome' }],
+              });
+            } catch (error) {
+              console.error('Logout error:', error);
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          },
+        },
+      ]
+    );
   };
 
   if (isLoading) {
@@ -430,6 +460,39 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
               <Text style={styles.cardSubtitle}>Export and manage data</Text>
             </View>
             <Text style={styles.arrow}>→</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* 7. Logout Button */}
+        <Animated.View
+          style={[
+            styles.settingCard,
+            {
+              opacity: card6Anim,
+              transform: [
+                {
+                  translateX: card6Anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.cardContent}
+            activeOpacity={0.7}
+            onPress={handleLogout}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: '#FFEBEE' }]}>
+              <Text style={styles.iconText}>🚪</Text>
+            </View>
+            <View style={styles.cardText}>
+              <Text style={[styles.cardTitle, { color: '#C62828' }]}>Logout</Text>
+              <Text style={styles.cardSubtitle}>Sign out of your account</Text>
+            </View>
+            <Text style={[styles.arrow, { color: '#C62828' }]}>→</Text>
           </TouchableOpacity>
         </Animated.View>
 

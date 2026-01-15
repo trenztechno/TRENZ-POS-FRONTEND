@@ -5,14 +5,11 @@ import { RootStackParamList } from '../types/business.types';
 // Existing screens
 import SplashScreen from '../screens/SplashScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
-import BusinessSetupScreen1 from '../screens/BusinessSetupStep1';
-import BusinessSetupScreen2 from '../screens/BusinessSetupStep2';
-import BusinessSetupScreen3 from '../screens/BusinessSetupStep3';
-import CreatingBusinessScreen from '../screens/CreatingBusinessScreen';
+import LoginScreen from '../screens/LoginScreen';
+import SignupScreen from '../screens/SignupScreen';
 import SetupSuccessScreen from '../screens/SuccessScreen';
 import SetupFailureScreen from '../screens/FailureScreen';
 import ModeSelectionScreen from '../screens/ModeSelectionScreen';
-import JoinBusinessScreen from '../screens/JoinBusinessScreen';
 
 // Dashboard Screens
 import DashboardScreen from '../screens/DashboardScreen';
@@ -80,23 +77,14 @@ const AppNavigator: React.FC = () => {
         options={{ animation: 'slide_from_right' }}
       />
       <Stack.Screen
-        name="BusinessSetup1"
-        component={BusinessSetupScreen1}
+        name="Login"
+        component={LoginScreen}
         options={{ animation: 'slide_from_right' }}
       />
       <Stack.Screen
-        name="BusinessSetupStep2"
-        component={BusinessSetupScreen2}
+        name="Signup"
+        component={SignupScreen}
         options={{ animation: 'slide_from_right' }}
-      />
-      <Stack.Screen
-        name="BusinessSetupStep3"
-        component={BusinessSetupScreen3}
-        options={{ animation: 'slide_from_right' }}
-      />
-      <Stack.Screen
-        name="CreatingBusiness"
-        component={CreatingBusinessScreen}
       />
       <Stack.Screen
         name="SetupSuccess"
@@ -113,11 +101,6 @@ const AppNavigator: React.FC = () => {
         component={ModeSelectionScreen}
         options={{ animation: 'fade' }}
       />
-      <Stack.Screen
-        name="JoinBusiness"
-        component={JoinBusinessScreen}
-        options={{ animation: 'slide_from_bottom', animationDuration: 300 }}
-      />
 
       {/* Billing screens */}
       <Stack.Screen
@@ -133,10 +116,8 @@ const AppNavigator: React.FC = () => {
       <Stack.Screen
         name="BillSuccess"
         component={BillSuccessScreen}
-        options={{ animation: 'fade', gestureEnabled: false }}
+        options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-
-      {/* Dashboard screens */}
       <Stack.Screen 
         name="Dashboard" 
         component={DashboardScreen}
