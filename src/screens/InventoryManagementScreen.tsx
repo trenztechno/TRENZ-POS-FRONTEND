@@ -13,19 +13,31 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { 
-  getInventoryItems, 
-  createInventoryItem, 
-  updateInventoryItem, 
-  deleteInventoryItem,
-  getUnitTypes,
-  getUnsyncedInventoryItems,
-  bulkUpsertInventoryItems,
-  markInventoryItemSynced,
-  InventoryItem,
-  UnitType,
-} from '../services/storage';
+// Storage imports removed
 import API from '../services/api';
+
+// Define types locally if not available in api.types
+interface InventoryItem {
+  id: string;
+  name: string;
+  description?: string;
+  quantity: string;
+  unit_type: string;
+  unit_type_display?: string;
+  sku?: string;
+  barcode?: string;
+  supplier_name?: string;
+  supplier_contact?: string;
+  min_stock_level?: string;
+  reorder_quantity?: string;
+  is_active: boolean;
+  is_low_stock?: boolean;
+}
+
+interface UnitType {
+  value: string;
+  label: string;
+}
 
 // Temporary type - will be replaced when you update api.types.ts
 type InventoryManagementScreenProps = {
@@ -41,13 +53,13 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
   const [isSyncing, setIsSyncing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showLowStockOnly, setShowLowStockOnly] = useState(false);
-  
+
   // Modal states
   const [modalVisible, setModalVisible] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  
+
   // Form states
   const [formName, setFormName] = useState('');
   const [formDescription, setFormDescription] = useState('');
@@ -59,7 +71,7 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
   const [formSupplierContact, setFormSupplierContact] = useState('');
   const [formMinStockLevel, setFormMinStockLevel] = useState('');
   const [formReorderQuantity, setFormReorderQuantity] = useState('');
-  
+
   // Stock update form
   const [stockAction, setStockAction] = useState<'set' | 'add' | 'subtract'>('add');
   const [stockQuantity, setStockQuantity] = useState('');
@@ -92,12 +104,12 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
+
       const [types, items] = await Promise.all([
-        getUnitTypes(),
-        getInventoryItems()
+        API.inventory.getUnitTypes(),
+        API.inventory.getAll()
       ]);
-      
+
       setUnitTypes(types);
       setInventoryItems(items);
     } catch (error) {
@@ -112,101 +124,13 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
    * Sync inventory with API
    * This function handles the complete sync process
    */
-  const handleSync = async () => {
-    try {
-      setIsSyncing(true);
-      
-      // Get unsynced items from local database
-      const unsyncedItems = await getUnsyncedInventoryItems();
-      
-      if (unsyncedItems.length === 0) {
-        // No local changes, fetch latest from server
-        try {
-          const serverItems = await API.inventory.getAll();
-          await bulkUpsertInventoryItems(serverItems);
-          const items = await getInventoryItems();
-          setInventoryItems(items);
-          Alert.alert('Success', `Downloaded ${serverItems.length} items from server`);
-        } catch (error) {
-          console.error('Failed to fetch from server:', error);
-          Alert.alert('Info', 'Already up to date');
-        }
-        return;
-      }
-
-      // Sync unsynced items
-      let syncedCount = 0;
-      let errorCount = 0;
-
-      for (const item of unsyncedItems) {
-        try {
-          // Check if item exists on server
-          let existsOnServer = false;
-          try {
-            await API.inventory.getById(item.id);
-            existsOnServer = true;
-          } catch (error: any) {
-            if (error.response?.status !== 404) {
-              throw error;
-            }
-          }
-
-          if (existsOnServer) {
-            // Update on server
-            await API.inventory.update(item.id, {
-              name: item.name,
-              description: item.description,
-              quantity: item.quantity,
-              unit_type: item.unit_type,
-              sku: item.sku,
-              barcode: item.barcode,
-              supplier_name: item.supplier_name,
-              supplier_contact: item.supplier_contact,
-              min_stock_level: item.min_stock_level,
-              reorder_quantity: item.reorder_quantity,
-              is_active: item.is_active,
-            });
-          } else {
-            // Create on server
-            await API.inventory.create({
-              name: item.name,
-              description: item.description,
-              quantity: item.quantity,
-              unit_type: item.unit_type,
-              sku: item.sku,
-              barcode: item.barcode,
-              supplier_name: item.supplier_name,
-              supplier_contact: item.supplier_contact,
-              min_stock_level: item.min_stock_level,
-              reorder_quantity: item.reorder_quantity,
-              is_active: item.is_active,
-            });
-          }
-
-          // Mark as synced locally
-          await markInventoryItemSynced(item.id);
-          syncedCount++;
-        } catch (error) {
-          console.error(`Failed to sync item ${item.id}:`, error);
-          errorCount++;
-        }
-      }
-
-      // Reload items
-      const items = await getInventoryItems();
-      setInventoryItems(items);
-
-      if (errorCount === 0) {
-        Alert.alert('Success', `Synced ${syncedCount} items`);
-      } else {
-        Alert.alert('Partial Success', `Synced ${syncedCount} items, ${errorCount} failed`);
-      }
-    } catch (error) {
-      console.error('Sync failed:', error);
-      Alert.alert('Error', 'Failed to sync inventory');
-    } finally {
-      setIsSyncing(false);
-    }
+  /**
+   * Refresh inventory from API
+   */
+  const handleRefresh = async () => {
+    setIsSyncing(true);
+    await loadData();
+    setIsSyncing(false);
   };
 
   const openAddModal = () => {
@@ -288,15 +212,14 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
       };
 
       if (modalMode === 'add') {
-        await createInventoryItem(itemData as Omit<InventoryItem, 'id'>);
+        await API.inventory.create(itemData as any);
         Alert.alert('Success', 'Item added successfully');
       } else if (modalMode === 'edit' && selectedItem) {
-        await updateInventoryItem(selectedItem.id, itemData);
+        await API.inventory.update(selectedItem.id, itemData);
         Alert.alert('Success', 'Item updated successfully');
       }
 
-      const items = await getInventoryItems();
-      setInventoryItems(items);
+      await loadData();
 
       setModalVisible(false);
       resetForm();
@@ -340,15 +263,15 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
           break;
       }
 
-      await updateInventoryItem(selectedItem.id, {
-        quantity: newQuantity.toString(),
-        last_restocked_at: new Date().toISOString(),
+      await API.inventory.updateStock(selectedItem.id, {
+        action: stockAction,
+        quantity: stockQuantity,
+        notes: stockNotes || undefined
       });
 
       Alert.alert('Success', 'Stock updated successfully');
 
-      const items = await getInventoryItems();
-      setInventoryItems(items);
+      await loadData();
 
       setModalVisible(false);
     } catch (error) {
@@ -370,9 +293,8 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
           style: 'destructive',
           onPress: async () => {
             try {
-              await deleteInventoryItem(item.id);
-              const items = await getInventoryItems();
-              setInventoryItems(items);
+              await API.inventory.delete(item.id);
+              await loadData();
               Alert.alert('Success', 'Item deleted successfully');
             } catch (error) {
               console.error('Delete failed:', error);
@@ -385,11 +307,11 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
   };
 
   const filteredItems = inventoryItems.filter(item => {
-    const matchesSearch = 
+    const matchesSearch =
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.sku || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (item.supplier_name || '').toLowerCase().includes(searchQuery.toLowerCase());
-    
+
     const matchesFilter = !showLowStockOnly || item.is_low_stock;
 
     return matchesSearch && matchesFilter;
@@ -437,7 +359,7 @@ const InventoryManagementScreen: React.FC<InventoryManagementScreenProps> = ({ n
 
         <TouchableOpacity
           style={styles.syncButton}
-          onPress={handleSync}
+          onPress={handleRefresh}
           disabled={isSyncing}
           activeOpacity={0.7}
         >

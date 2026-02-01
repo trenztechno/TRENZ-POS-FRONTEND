@@ -12,7 +12,8 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { getBusinessSettings } from '../services/storage';
+import API from '../services/api';
+// Local storage import removed
 
 type BillFormatScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'BillFormat'>;
@@ -102,18 +103,18 @@ const BillFormatScreen: React.FC<BillFormatScreenProps> = ({ navigation }) => {
 
   const loadConfigStatus = async () => {
     try {
-      const settings = await getBusinessSettings();
-      
+      const profile = await API.auth.getProfile();
+
       const status: Record<string, boolean> = {};
-      
+
       // Check which settings are configured
-      if (settings) {
-        status['business_name'] = !!settings.business_name;
-        status['business_logo_path'] = !!settings.business_logo_path;
-        status['bill_footer_note'] = !!settings.bill_footer_note;
-        status['bill_prefix'] = !!settings.bill_prefix;
+      if (profile) {
+        status['business_name'] = !!profile.business_name;
+        status['business_logo_path'] = !!profile.logo_url;
+        status['bill_footer_note'] = !!profile.footer_note;
+        status['bill_prefix'] = !!profile.bill_prefix;
       }
-      
+
       setConfigStatus(status);
     } catch (error) {
       console.error('Failed to load config status:', error);

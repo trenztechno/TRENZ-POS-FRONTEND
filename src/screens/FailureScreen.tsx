@@ -1,9 +1,9 @@
-import React, {useEffect, useRef} from 'react';
-import {View, Text, StyleSheet, Animated} from 'react-native';
-import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import Svg, {Path, Circle} from 'react-native-svg';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Animated } from 'react-native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import Svg, { Path, Circle } from 'react-native-svg';
 import AnimatedButton from '../components/AnimatedButton';
-import type {RootStackParamList} from '../types/business.types';
+import type { RootStackParamList } from '../types/business.types';
 
 type SetupFailureScreenProps = NativeStackScreenProps<RootStackParamList, 'SetupFailure'>;
 
@@ -20,8 +20,8 @@ const ErrorIcon = () => (
   </Svg>
 );
 
-const SetupFailureScreen: React.FC<SetupFailureScreenProps> = ({navigation, route}) => {
-  const {error} = route.params;
+const SetupFailureScreen: React.FC<SetupFailureScreenProps> = ({ navigation, route }) => {
+  const { error } = route.params;
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
 
@@ -42,7 +42,7 @@ const SetupFailureScreen: React.FC<SetupFailureScreenProps> = ({navigation, rout
   }, []);
 
   const handleTryAgain = () => {
-    navigation.navigate('BusinessSetup1');
+    navigation.navigate('BusinessDetails');
   };
 
   return (
@@ -52,13 +52,13 @@ const SetupFailureScreen: React.FC<SetupFailureScreenProps> = ({navigation, rout
           styles.content,
           {
             opacity: fadeAnim,
-            transform: [{scale: scaleAnim}],
+            transform: [{ scale: scaleAnim }],
           },
         ]}>
         <View style={styles.iconContainer}>
           <ErrorIcon />
         </View>
-        
+
         <Text style={styles.title}>Setup Failed</Text>
         <Text style={styles.subtitle}>
           {error || 'Something went wrong. Please try again.'}

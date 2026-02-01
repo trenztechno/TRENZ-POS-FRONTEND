@@ -13,9 +13,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/business.types';
 import RNFS from 'react-native-fs';
-import { 
-  createCategory, 
-  createItem, 
+import {
+  createCategory,
+  createItem,
   createBill,
   saveBusinessSettings,
 } from '../services/storage';
@@ -69,20 +69,20 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
       // Step 1: Read backup file (10%)
       setStatusText('Reading backup file...');
       setProgress(10);
-      
+
       const filePath = fileName.startsWith('/')
         ? fileName
         : `${RNFS.DocumentDirectoryPath}/${fileName}`;
-      
+
       const fileContent = await RNFS.readFile(filePath, 'utf8');
       await new Promise<void>(resolve => setTimeout(() => resolve(), 500));
 
       // Step 2: Parse and validate (20%)
       setStatusText('Validating backup data...');
       setProgress(20);
-      
+
       const backupData = JSON.parse(fileContent);
-      
+
       if (!backupData.version || !backupData.data) {
         throw new Error('Invalid backup file format');
       }
@@ -93,7 +93,7 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
       // Step 3: Restore categories (40%)
       setStatusText('Restoring categories...');
       setProgress(30);
-      
+
       if (categories.length > 0) {
         for (let i = 0; i < categories.length; i++) {
           const category = categories[i];
@@ -106,7 +106,7 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
           } catch (error) {
             console.error('Failed to restore category:', category.name, error);
           }
-          
+
           // Update progress incrementally
           const categoryProgress = 30 + (10 * (i + 1) / categories.length);
           setProgress(Math.floor(categoryProgress));
@@ -117,7 +117,7 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
 
       // Step 4: Restore items (60%)
       setStatusText('Restoring items...');
-      
+
       if (items.length > 0) {
         for (let i = 0; i < items.length; i++) {
           const item = items[i];
@@ -137,7 +137,7 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
           } catch (error) {
             console.error('Failed to restore item:', item.name, error);
           }
-          
+
           // Update progress incrementally
           const itemProgress = 40 + (20 * (i + 1) / items.length);
           setProgress(Math.floor(itemProgress));
@@ -148,19 +148,25 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
 
       // Step 5: Restore bills (80%)
       setStatusText('Restoring bills...');
-      
+
       if (bills.length > 0) {
         for (let i = 0; i < bills.length; i++) {
           const bill = bills[i];
           try {
             await createBill({
+              invoice_number: bill.invoice_number || `INV-${Date.now()}-${i}`,
               bill_number: bill.bill_number,
+              billing_mode: bill.billing_mode || 'non_gst',
+              restaurant_name: bill.restaurant_name || 'Restored',
+              address: bill.address || '',
+              bill_date: bill.bill_date || new Date().toISOString(),
               items: bill.items || [],
               subtotal: bill.subtotal,
-              tax_amount: bill.tax_amount,
+              total_tax: bill.tax_amount || bill.total_tax || 0,
               discount_amount: bill.discount_amount,
               total_amount: bill.total_amount,
-              payment_method: bill.payment_method,
+              payment_mode: bill.payment_mode || bill.payment_method || 'cash',
+              amount_paid: bill.amount_paid || bill.total_amount,
               customer_name: bill.customer_name,
               customer_phone: bill.customer_phone,
               notes: bill.notes,
@@ -169,7 +175,7 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
           } catch (error) {
             console.error('Failed to restore bill:', bill.bill_number, error);
           }
-          
+
           // Update progress incrementally
           const billProgress = 60 + (20 * (i + 1) / bills.length);
           setProgress(Math.floor(billProgress));
@@ -181,7 +187,7 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
       // Step 6: Restore settings (90%)
       setStatusText('Restoring settings...');
       setProgress(90);
-      
+
       if (Object.keys(settings).length > 0) {
         try {
           await saveBusinessSettings(settings);
@@ -201,7 +207,7 @@ const RestoringDataScreen: React.FC<RestoringDataScreenProps> = ({
 
     } catch (error) {
       console.error('Restore failed:', error);
-      
+
       Alert.alert(
         'Restore Failed',
         `Failed to restore data: ${error instanceof Error ? error.message : 'Unknown error'}`,

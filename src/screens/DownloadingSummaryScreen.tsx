@@ -11,7 +11,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import ProgressIndicator from '../components/ProgressIndicator';
 import { RootStackParamList } from '../types/business.types';
-import { getBills, getItems, getCategories } from '../services/storage';
+// Local storage import removed
 
 type DownloadingSummaryScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'DownloadingSummary'>;
@@ -60,23 +60,20 @@ const DownloadingSummaryScreen: React.FC<DownloadingSummaryScreenProps> = ({
 
   const generateSummary = async () => {
     try {
-      // Step 1: Load bills (25%)
+      // Step 1: Initialize (25%)
       setProgress(25);
-      setStatusText('Loading bills from database…');
-      await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
-      const bills = await getBills();
+      setStatusText('Initializing...');
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 800));
 
-      // Step 2: Load items (50%)
+      // Step 2: Preparing request (50%)
       setProgress(50);
-      setStatusText('Loading items data…');
-      await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
-      const items = await getItems();
+      setStatusText('Preparing request...');
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 800));
 
-      // Step 3: Load categories (75%)
+      // Step 3: Finalizing (75%)
       setProgress(75);
-      setStatusText('Loading categories…');
-      await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
-      const categories = await getCategories();
+      setStatusText('Finalizing...');
+      await new Promise<void>(resolve => setTimeout(() => resolve(), 800));
 
       // Step 4: Complete (100%)
       setProgress(100);
@@ -91,7 +88,6 @@ const DownloadingSummaryScreen: React.FC<DownloadingSummaryScreenProps> = ({
     } catch (error) {
       console.error('Failed to generate summary:', error);
       setStatusText('Failed to generate summary');
-      // Still navigate but BillSummary will handle the error
       setTimeout(() => {
         navigation.replace('BillSummary', {
           dateRange: route.params?.dateRange || 'today',

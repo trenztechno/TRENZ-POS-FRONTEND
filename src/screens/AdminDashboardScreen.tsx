@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings } from '../services/storage';
 import { getUserData, logout } from '../services/auth';
+import API from '../services/api';
+// import { getBusinessSettings } from '../services/storage';
 
 type AdminDashboardScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'AdminDashboard'>;
@@ -97,16 +98,14 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
 
   const loadBusinessData = async () => {
     try {
-      // Get business settings from SQLite
-      const settings = await getBusinessSettings();
-      const userData = await getUserData();
+      // Get business settings from API
+      const profile = await API.auth.getProfile();
 
       setBusinessInfo({
-        name: settings?.business_name || userData?.business_name || 'My Business',
-        address: settings?.business_address || 'Not set',
-        phone: settings?.business_phone || 'Not set',
-        email: settings?.business_email || 'Not set',
-
+        name: profile.business_name || 'My Business',
+        address: profile.address || 'Not set',
+        phone: profile.phone || 'Not set',
+        email: profile.email || 'Not set',
       });
     } catch (error) {
       console.error('Failed to load business data:', error);
@@ -430,7 +429,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           </TouchableOpacity>
         </Animated.View>
 
-        {/* 6. Backup & Data */}
+        {/* 6. Backup & Data - Removed for Online Only Mode
         <Animated.View
           style={[
             styles.settingCard,
@@ -462,6 +461,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
             <Text style={styles.arrow}>→</Text>
           </TouchableOpacity>
         </Animated.View>
+        */}
 
         {/* 7. Logout Button */}
         <Animated.View

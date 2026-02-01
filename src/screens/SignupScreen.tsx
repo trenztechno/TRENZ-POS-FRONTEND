@@ -32,7 +32,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
   const [address, setAddress] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -168,7 +168,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -221,10 +221,10 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
 
             {/* Email */}
             <View style={styles.inputContainer}>
-              <Text style={styles.label}>Email (Optional)</Text>
+              <Text style={styles.label}>Email *</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter email (optional)"
+                placeholder="Enter email"
                 placeholderTextColor="#999999"
                 value={email}
                 onChangeText={setEmail}
@@ -245,6 +245,7 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
                 onChangeText={setPhone}
                 keyboardType="phone-pad"
               />
+              <Text style={styles.helperText}>Phone number can be used for password recovery if provided</Text>
             </View>
 
             {/* GST Number */}
@@ -252,14 +253,13 @@ const SignupScreen: React.FC<SignupScreenProps> = ({ navigation }) => {
               <Text style={styles.label}>GST Number (Optional)</Text>
               <TextInput
                 style={styles.input}
-                placeholder="Enter GST number (e.g., 29ABCDE1234F1Z5)"
+                placeholder="Enter GST number"
                 placeholderTextColor="#999999"
                 value={gstNumber}
                 onChangeText={setGstNumber}
                 autoCapitalize="characters"
                 editable={!isLoading}
               />
-              <Text style={styles.helperText}>GST number can be used for password recovery if provided</Text>
             </View>
 
             {/* Address */}

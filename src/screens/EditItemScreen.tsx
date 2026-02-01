@@ -16,7 +16,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList, MenuItem } from '../types/business.types';
-import { getCategories, updateItem, getItemById } from '../services/storage';
+import API from '../services/api';
 
 type EditItemScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'EditItem'>;
@@ -74,78 +74,15 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
-      // First, load from local database (fast)
-      const localCategories = await getCategories();
-      console.log('📁 Loaded categories from local database:', localCategories.length);
-      
-      if (localCategories.length > 0) {
-        // Set categories immediately if we have them locally
-        setCategories(localCategories);
-      }
-      
-      // Then try to fetch from API to get latest (including global categories)
-      try {
-        console.log('🌐 Fetching categories from API...');
-        const API = await import('../services/api');
-        const apiCategories = await API.default.categories.getAll();
-        console.log(`📥 Received ${apiCategories.length} categories from API`);
-        
-        // Save to database
-        const { getDatabase } = await import('../database/schema');
-        const db = getDatabase();
-        const now = new Date().toISOString();
-        
-        for (const category of apiCategories) {
-          db.execute(
-            `INSERT OR REPLACE INTO categories 
-             (id, name, description, is_active, sort_order, vendor_id, is_synced, server_updated_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              category.id,
-              category.name,
-              category.description,
-              category.is_active ? 1 : 0,
-              category.sort_order,
-              category.vendor_id || null,
-              1,
-              category.updated_at,
-              category.created_at,
-              now,
-            ]
-          );
-        }
-        console.log(`✅ Synced ${apiCategories.length} categories to database`);
-        
-        // Reload from database to get the updated list
-        const updatedCategories = await getCategories();
-        setCategories(updatedCategories);
-      } catch (apiError) {
-        console.warn('Failed to fetch categories from API, using local data:', apiError);
-        
-        // If we didn't have local categories and API failed, show a more helpful message
-        if (localCategories.length === 0) {
-          console.warn('⚠️ No categories available - neither local nor from API');
-        }
-      }
 
-      // Load fresh item data
-      const itemData = await getItemById(item.id);
-      if (itemData) {
-        setItemName(itemData.name);
-        setPrice(itemData.price.toString());
-        setMrpPrice((itemData.mrp_price || itemData.price).toString());
-        setPriceType((itemData.price_type as 'exclusive' | 'inclusive') || 'exclusive');
-        setGstPercentage((itemData.gst_percentage || 0).toString());
-        setVegNonVeg((itemData.veg_nonveg as 'veg' | 'nonveg') || '');
-        setAdditionalDiscount((itemData.additional_discount || 0).toString());
-        setSelectedCategoryIds(itemData.category_ids || []);
-        setImageUrl(itemData.image_url || itemData.image_path || '');
-        setUseGlobalGST(!itemData.gst_percentage || itemData.gst_percentage === 0);
-      }
+      console.log('🌐 Loading categories from API (online-only)...');
+      const apiCategories = await API.categories.getAll();
+      setCategories(apiCategories);
+
+      console.log('✅ Loaded categories from API:', apiCategories.length);
     } catch (error) {
-      console.error('Failed to load data:', error);
-      Alert.alert('Error', 'Failed to load item data');
+      console.error('Failed to load categories:', error);
+      Alert.alert('Error', 'Failed to load categories. Please check your connection.');
     } finally {
       setIsLoading(false);
     }
@@ -176,8 +113,8 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
     try {
       setIsUpdating(true);
 
-      // Update item in database
-      await updateItem(item.id, {
+      // Update item via API
+      await API.items.update(item.id, {
         name: itemName.trim(),
         price: parseFloat(price),
         mrp_price: mrpPrice ? parseFloat(mrpPrice) : parseFloat(price),
@@ -186,7 +123,6 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
         veg_nonveg: vegNonVeg || undefined,
         additional_discount: parseFloat(additionalDiscount) || 0,
         category_ids: selectedCategoryIds,
-        image_url: imageUrl || undefined,
         // Note: Image upload functionality would go here
       });
 
@@ -241,11 +177,11 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
 
   const getSelectedCategoryNames = () => {
     if (selectedCategoryIds.length === 0) return 'Select categories';
-    
+
     const names = selectedCategoryIds
       .map(id => categories.find(cat => cat.id === id)?.name)
       .filter(Boolean);
-    
+
     if (names.length === 0) return 'Select categories';
     if (names.length === 1) return names[0];
     return `${names[0]} +${names.length - 1}`;
@@ -305,7 +241,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
           },
         ]}
       >
-        <ScrollView 
+        <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -313,7 +249,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
           {/* Item Image (Optional) */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Item Image (Optional)</Text>
-            
+
             {!changingImage && imageUrl ? (
               /* Show existing image with Change Image link */
               <View style={styles.imagePreviewContainer}>
@@ -342,7 +278,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
                   <Text style={styles.uploadText}>Upload Item Image</Text>
                   <Text style={styles.browseText}>Tap to browse files</Text>
                 </TouchableOpacity>
-                
+
                 {/* URL Input */}
                 <TextInput
                   style={styles.urlInput}
@@ -594,8 +530,8 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
 
       {/* Footer - Update Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.updateButton, isUpdating && styles.updateButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.updateButton, isUpdating && styles.updateButtonDisabled]}
           onPress={handleUpdate}
           disabled={isUpdating}
         >
@@ -614,7 +550,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
         animationType="fade"
         onRequestClose={() => setShowCategoryDropdown(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowCategoryDropdown(false)}
@@ -623,7 +559,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
             <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Select Categories</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => setShowCategoryDropdown(false)}
                   style={styles.modalCloseButton}
                 >

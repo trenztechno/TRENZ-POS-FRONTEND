@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+import API from '../services/api';
+// import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type GSTSettingsScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'GSTSettings'>;
@@ -58,23 +59,23 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
   const loadGSTSettings = async () => {
     try {
       setIsLoading(true);
-      const settings = await getBusinessSettings();
-      
-      if (settings) {
+      const profile = await API.auth.getProfile();
+
+      if (profile) {
         // Load tax_rate as gst percent
-        if (settings.tax_rate !== undefined) {
-          setGstPercent((settings.tax_rate * 100).toString());
+        if (profile.default_gst_percentage !== undefined) {
+          setGstPercent(profile.default_gst_percentage.toString());
         }
-        
+
         // Load other GST settings if they exist
-        if (settings.gst_type) {
-          setGstType(settings.gst_type as GSTType);
+        if (profile.gst_type) {
+          setGstType(profile.gst_type as GSTType);
         }
-        if (settings.item_level_override !== undefined) {
-          setItemLevelOverride(settings.item_level_override === 1);
+        if (profile.item_level_override !== undefined) {
+          setItemLevelOverride(profile.item_level_override === true);
         }
-        if (settings.rounding_rule) {
-          setRoundingRule(settings.rounding_rule as RoundingRule);
+        if (profile.rounding_rule) {
+          setRoundingRule(profile.rounding_rule as RoundingRule);
         }
       }
     } catch (error) {
@@ -87,7 +88,7 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
 
   const handleSaveSettings = async () => {
     const percent = parseFloat(gstPercent);
-    
+
     if (isNaN(percent) || percent < 0 || percent > 100) {
       Alert.alert('Invalid GST', 'Please enter a valid GST percentage (0-100)');
       return;
@@ -95,11 +96,11 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
 
     try {
       setIsSaving(true);
-      
-      await saveBusinessSettings({
-        tax_rate: percent / 100, // Store as decimal (e.g., 0.18 for 18%)
+
+      await API.auth.updateProfile({
+        default_gst_percentage: percent,
         gst_type: gstType,
-        item_level_override: itemLevelOverride ? 1 : 0,
+        item_level_override: itemLevelOverride,
         rounding_rule: roundingRule,
       });
 
@@ -326,7 +327,7 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
           </View>
         </Animated.View>
 
-        {/* GST Type */}
+        {/* GST Type 
         <Animated.View
           style={[
             styles.card,
@@ -395,7 +396,7 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
           </View>
         </Animated.View>
 
-        {/* Rounding Rules */}
+        
         <Animated.View
           style={[
             styles.card,
@@ -494,7 +495,7 @@ const GSTSettingsScreen: React.FC<GSTSettingsScreenProps> = ({ navigation }) => 
               </Text>
             </TouchableOpacity>
           </View>
-        </Animated.View>
+        </Animated.View>*/}
 
         {/* Save Button */}
         <Animated.View

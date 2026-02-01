@@ -74,7 +74,7 @@ apiClient.interceptors.response.use(
       statusText: error.response?.statusText,
       data: error.response?.data,
     });
-    
+
     if (error.response?.status === 401) {
       // Token expired or invalid - logout user
       console.log('🔒 Authentication failed - token invalid or expired');
@@ -114,7 +114,7 @@ export const API = {
 
     forgotPassword: async (data: {
       username: string;
-      gst_no: string;
+      phone: string;
     }): Promise<any> => {
       const response = await apiClient.post('/auth/forgot-password', data);
       return response.data;
@@ -122,7 +122,7 @@ export const API = {
 
     resetPassword: async (data: {
       username: string;
-      gst_no: string;
+      phone: string;
       new_password: string;
       new_password_confirm: string;
     }): Promise<any> => {
@@ -147,6 +147,96 @@ export const API = {
         headers: isFormData ? {} : { 'Content-Type': 'application/json' },
       });
       return response.data;
+    },
+
+    // ==================== VENDOR STAFF USER MANAGEMENT ====================
+    // Security PIN Management
+    securityPin: {
+      // Set or change security PIN
+      set: async (data: {
+        pin: string;
+        pin_confirm: string;
+        old_pin?: string;
+      }): Promise<{ message: string }> => {
+        const response = await apiClient.post('/auth/vendor/security-pin/set', data);
+        return response.data;
+      },
+
+      // Verify security PIN
+      verify: async (pin: string): Promise<{
+        message: string;
+        verified: boolean;
+      }> => {
+        const response = await apiClient.post('/auth/vendor/security-pin/verify', { pin });
+        return response.data;
+      },
+
+      // Check if PIN is set
+      status: async (): Promise<{ has_pin: boolean }> => {
+        const response = await apiClient.get('/auth/vendor/security-pin/status');
+        return response.data;
+      },
+    },
+
+    // Staff User Management
+    staff: {
+      // Create staff user
+      create: async (data: {
+        username: string;
+        password: string;
+        email?: string;
+        security_pin: string;
+      }): Promise<{
+        message: string;
+        user: {
+          id: number;
+          username: string;
+          email: string;
+          role: string;
+          created_at: string;
+        };
+      }> => {
+        const response = await apiClient.post('/auth/vendor/users/create', data);
+        return response.data;
+      },
+
+      // List all vendor users (owner + staff)
+      list: async (): Promise<{
+        users: Array<{
+          id: number;
+          username: string;
+          email: string;
+          role: 'owner' | 'staff';
+          created_at: string;
+          created_by: string | null;
+        }>;
+      }> => {
+        const response = await apiClient.get('/auth/vendor/users');
+        return response.data;
+      },
+
+      // Reset staff password
+      resetPassword: async (
+        userId: number,
+        data: {
+          new_password: string;
+          security_pin: string;
+        }
+      ): Promise<{ message: string }> => {
+        const response = await apiClient.post(
+          `/auth/vendor/users/${userId}/reset-password`,
+          data
+        );
+        return response.data;
+      },
+
+      // Remove (deactivate) staff user
+      remove: async (userId: number, securityPin: string): Promise<{ message: string }> => {
+        const response = await apiClient.delete(`/auth/vendor/users/${userId}`, {
+          params: { security_pin: securityPin },
+        });
+        return response.data;
+      },
     },
   },
 
@@ -238,8 +328,12 @@ export const API = {
         name: `${id}.jpg`,
       } as any);
 
-      // Don't set Content-Type - axios will set it with boundary automatically
-      const response = await apiClient.patch(`/items/${id}/`, formData);
+      // Explicitly set Content-Type to multipart/form-data to override default json adapter
+      const response = await apiClient.patch(`/items/${id}/`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       return response.data;
     },
 
@@ -268,8 +362,12 @@ export const API = {
         name: `${data.id || 'item'}.jpg`,
       } as any);
 
-      // Don't set Content-Type - axios will set it with boundary automatically
-      const response = await apiClient.post('/items/', formData);
+      // Explicitly set Content-Type to multipart/form-data to override default json adapter
+      const response = await apiClient.post('/items/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
       return response.data;
     },
 
@@ -357,15 +455,95 @@ export const API = {
     },
   },
 
-  // ==================== BILLS / SALES BACKUP ====================
+  // ==================== BILLS (Direct CRUD Operations) ====================
   bills: {
+    // List bills with filtering and pagination
+    list: async (params?: {
+      billing_mode?: BillingMode;
+      start_date?: string;
+      end_date?: string;
+      payment_mode?: 'cash' | 'upi' | 'card' | 'credit' | 'other';
+      limit?: number;
+      offset?: number;
+    }): Promise<{
+      count: number;
+      total: number;
+      offset: number;
+      limit: number;
+      bills: Bill[];
+    }> => {
+      const response = await apiClient.get('/bills/', { params });
+      return response.data;
+    },
+
+    // Create new bill (server generates invoice number)
+    create: async (data: {
+      bill_date?: string;
+      billing_mode: BillingMode;
+      items_data: Array<{
+        item_id?: string;
+        item_name: string;
+        price: string;
+        mrp_price: string;
+        price_type: 'exclusive' | 'inclusive';
+        gst_percentage?: string;
+        quantity: string;
+        subtotal: string;
+        item_gst_amount?: string;
+        veg_nonveg?: 'veg' | 'nonveg';
+      }>;
+      subtotal: string;
+      cgst_amount?: string;
+      sgst_amount?: string;
+      igst_amount?: string;
+      total_tax?: string;
+      total_amount: string;
+      payment_mode: 'cash' | 'upi' | 'card' | 'credit' | 'other';
+      amount_paid?: string;
+      customer_name?: string;
+      customer_phone?: string;
+      payment_reference?: string;
+    }): Promise<Bill> => {
+      const response = await apiClient.post('/bills/', data);
+      return response.data;
+    },
+
+    // Get bill details
+    getById: async (id: string): Promise<Bill> => {
+      const response = await apiClient.get(`/bills/${id}/`);
+      return response.data;
+    },
+
+    // Update bill
+    update: async (id: string, data: Partial<{
+      items_data: Array<any>;
+      payment_mode: string;
+      payment_reference: string;
+      amount_paid: string;
+      customer_name: string;
+      customer_phone: string;
+      subtotal: string;
+      total_amount: string;
+    }>): Promise<Bill> => {
+      const response = await apiClient.patch(`/bills/${id}/`, data);
+      return response.data;
+    },
+
+    // Delete bill
+    delete: async (id: string): Promise<void> => {
+      await apiClient.delete(`/bills/${id}/`);
+    },
+  },
+
+  // ==================== SALES BACKUP (Multi-Device Sync Only) ====================
+  backup: {
     // Download bills from server (for new device or sync)
     download: async (params?: BillDownloadParams): Promise<BillDownloadResponse> => {
       const response = await apiClient.get('/backup/sync', { params });
       return response.data;
     },
 
-    // Upload/sync bills to server
+    // Upload/sync existing bills to server (for multi-device sync)
     sync: async (bills: BillSyncRequest | BillSyncRequest[]): Promise<{
       synced: number;
       created: number;
@@ -446,6 +624,31 @@ export const API = {
       end_date?: string;
     }): Promise<DashboardProfitResponse> => {
       const response = await apiClient.get('/dashboard/profit', { params });
+      return response.data;
+    },
+
+    // Get pending payments and dues
+    getPendingPayments: async (params?: {
+      start_date?: string;
+      end_date?: string;
+      limit?: number;
+      offset?: number;
+    }): Promise<{
+      total_pending: string;
+      count: number;
+      bills: Array<{
+        id: string;
+        invoice_number: string;
+        customer_name: string;
+        customer_phone: string;
+        total_amount: string;
+        amount_paid: string;
+        pending_amount: string;
+        bill_date: string;
+        created_at: string;
+      }>;
+    }> => {
+      const response = await apiClient.get('/dashboard/dues', { params });
       return response.data;
     },
   },

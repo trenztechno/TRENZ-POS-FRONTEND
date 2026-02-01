@@ -1,6 +1,6 @@
 // src/components/templates/GSTBillTemplate.tsx
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 
 export interface GSTBillData {
   // Business Details
@@ -11,13 +11,13 @@ export interface GSTBillData {
   fssaiLicense: string;
   phone?: string;
   logoUri?: string;
-  
+
   // Bill Details
   billNumber: string;
   billDate: string;
   billTime?: string;
   tableNumber?: string;
-  
+
   // Items
   items: Array<{
     name: string;
@@ -26,7 +26,7 @@ export interface GSTBillData {
     amount: number;
     gstPercentage?: number;
   }>;
-  
+
   // Amounts
   subtotal: number;
   cgstAmount: number;
@@ -34,13 +34,13 @@ export interface GSTBillData {
   cgstPercentage: number;
   sgstPercentage: number;
   totalAmount: number;
-  
+
   // Payment
   paymentMode: string;
   paymentReference?: string;
   amountPaid?: number;
   changeAmount?: number;
-  
+
   // Optional
   footerNote?: string;
   customerName?: string;
@@ -49,176 +49,139 @@ export interface GSTBillData {
 
 interface GSTBillTemplateProps {
   data: GSTBillData;
-  paperWidth?: 58 | 80; // mm
+  paperWidth?: 58 | 80; // Keeping prop for API compatibility, but ignoring for screen render
 }
 
-const GSTBillTemplate: React.FC<GSTBillTemplateProps> = ({ 
-  data, 
-  paperWidth = 58 
+const GSTBillTemplate: React.FC<GSTBillTemplateProps> = ({
+  data,
 }) => {
-  const styles = paperWidth === 58 ? styles58mm : styles80mm;
-
   return (
-    <View style={[baseStyles.container, styles.container]}>
-      {/* Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
-
+    <View style={styles.container}>
       {/* Business Header */}
-      <Text style={[baseStyles.businessName, styles.text]}>
-        {data.restaurantName.toUpperCase()}
-      </Text>
-      <Text style={[baseStyles.address, styles.text]}>
-        {data.address}
-      </Text>
-      <Text style={[baseStyles.businessDetail, styles.text]}>
-        GSTIN: {data.gstin}
-      </Text>
-      <Text style={[baseStyles.businessDetail, styles.text]}>
-        FSSAI No: {data.fssaiLicense}
-      </Text>
-      {data.phone && (
-        <Text style={[baseStyles.businessDetail, styles.text]}>
-          Ph: {data.phone}
+      <View style={styles.headerContainer}>
+        <Text style={styles.businessName}>
+          {data.restaurantName.toUpperCase()}
         </Text>
-      )}
-
-      {/* Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
-
-      {/* Bill Details */}
-      <Text style={[baseStyles.billDetail, styles.text]}>
-        Bill No: {data.billNumber}
-      </Text>
-      <Text style={[baseStyles.billDetail, styles.text]}>
-        Date: {data.billDate}
-        {data.billTime && ` | Time: ${data.billTime}`}
-      </Text>
-      <Text style={[baseStyles.billDetail, styles.text]}>
-        Invoice No: {data.invoiceNumber}
-      </Text>
-      {data.tableNumber && (
-        <Text style={[baseStyles.billDetail, styles.text]}>
-          Table: {data.tableNumber}
+        <Text style={styles.address}>
+          {data.address}
         </Text>
-      )}
-
-      {/* Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
-
-      {/* Items Header */}
-      <View style={baseStyles.itemsHeader}>
-        <Text style={[baseStyles.itemsHeaderText, styles.text, { flex: 3 }]}>
-          Item
+        <Text style={styles.businessDetail}>
+          GSTIN: {data.gstin}
         </Text>
-        <Text style={[baseStyles.itemsHeaderText, styles.text, { flex: 1, textAlign: 'center' }]}>
-          Qty
+        <Text style={styles.businessDetail}>
+          FSSAI No: {data.fssaiLicense}
         </Text>
-        <Text style={[baseStyles.itemsHeaderText, styles.text, { flex: 1.5, textAlign: 'right' }]}>
-          Rate
-        </Text>
-        <Text style={[baseStyles.itemsHeaderText, styles.text, { flex: 1.5, textAlign: 'right' }]}>
-          Amount
-        </Text>
+        {data.phone && (
+          <Text style={styles.businessDetail}>
+            Ph: {data.phone}
+          </Text>
+        )}
       </View>
 
-      {/* Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
+      <View style={styles.divider} />
+
+      {/* Bill Details */}
+      <View style={styles.row}>
+        <Text style={styles.label}>Bill No:</Text>
+        <Text style={styles.value}>{data.billNumber}</Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.label}>Date:</Text>
+        <Text style={styles.value}>
+          {data.billDate}{data.billTime ? ` | ${data.billTime}` : ''}
+        </Text>
+      </View>
+      <View style={styles.row}>
+        <Text style={styles.label}>Invoice No:</Text>
+        <Text style={styles.value}>{data.invoiceNumber}</Text>
+      </View>
+      {data.tableNumber && (
+        <View style={styles.row}>
+          <Text style={styles.label}>Table:</Text>
+          <Text style={styles.value}>{data.tableNumber}</Text>
+        </View>
+      )}
+
+      <View style={styles.divider} />
+
+      {/* Items Header */}
+      <View style={styles.itemsHeader}>
+        <Text style={[styles.itemsHeaderText, { flex: 2, textAlign: 'left' }]}>Item</Text>
+        <Text style={[styles.itemsHeaderText, { flex: 0.8, textAlign: 'center' }]}>Qty</Text>
+        <Text style={[styles.itemsHeaderText, { flex: 1.2, textAlign: 'right' }]}>Rate</Text>
+        <Text style={[styles.itemsHeaderText, { flex: 1.5, textAlign: 'right' }]}>Amount</Text>
+      </View>
+
+      <View style={styles.divider} />
 
       {/* Items List */}
       {data.items.map((item, index) => (
-        <View key={index} style={baseStyles.itemRow}>
-          <Text style={[baseStyles.itemName, styles.text, { flex: 3 }]}>
+        <View key={index} style={styles.itemRow}>
+          <Text style={[styles.itemName, { flex: 2, textAlign: 'left' }]}>
             {item.name}
           </Text>
-          <Text style={[baseStyles.itemQuantity, styles.text, { flex: 1, textAlign: 'center' }]}>
+          <Text style={[styles.itemQuantity, { flex: 0.8, textAlign: 'center' }]}>
             {item.quantity}
           </Text>
-          <Text style={[baseStyles.itemRate, styles.text, { flex: 1.5, textAlign: 'right' }]}>
+          <Text style={[styles.itemRate, { flex: 1.2, textAlign: 'right' }]}>
             {item.rate.toFixed(2)}
           </Text>
-          <Text style={[baseStyles.itemAmount, styles.text, { flex: 1.5, textAlign: 'right' }]}>
+          <Text style={[styles.itemAmount, { flex: 1.5, textAlign: 'right' }]}>
             {item.amount.toFixed(2)}
           </Text>
         </View>
       ))}
 
-      {/* Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
+      <View style={styles.divider} />
 
       {/* Totals */}
-      <View style={baseStyles.totalRow}>
-        <Text style={[baseStyles.totalLabel, styles.text]}>Sub Total</Text>
-        <Text style={[baseStyles.totalValue, styles.text]}>
-          {data.subtotal.toFixed(2)}
-        </Text>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>Sub Total</Text>
+        <Text style={styles.totalValue}>{data.subtotal.toFixed(2)}</Text>
       </View>
 
-      <View style={baseStyles.totalRow}>
-        <Text style={[baseStyles.totalLabel, styles.text]}>
-          CGST @{data.cgstPercentage}%
-        </Text>
-        <Text style={[baseStyles.totalValue, styles.text]}>
-          {data.cgstAmount.toFixed(2)}
-        </Text>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>CGST @{data.cgstPercentage}%</Text>
+        <Text style={styles.totalValue}>{data.cgstAmount.toFixed(2)}</Text>
       </View>
 
-      <View style={baseStyles.totalRow}>
-        <Text style={[baseStyles.totalLabel, styles.text]}>
-          SGST @{data.sgstPercentage}%
-        </Text>
-        <Text style={[baseStyles.totalValue, styles.text]}>
-          {data.sgstAmount.toFixed(2)}
-        </Text>
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>SGST @{data.sgstPercentage}%</Text>
+        <Text style={styles.totalValue}>{data.sgstAmount.toFixed(2)}</Text>
       </View>
 
-      {/* Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
+      <View style={styles.divider} />
 
       {/* Grand Total */}
-      <View style={baseStyles.grandTotalRow}>
-        <Text style={[baseStyles.grandTotalLabel, styles.text]}>
-          TOTAL AMOUNT
-        </Text>
-        <Text style={[baseStyles.grandTotalValue, styles.text]}>
-          ₹{data.totalAmount.toFixed(2)}
-        </Text>
+      <View style={[styles.totalRow, styles.grandTotalRow]}>
+        <Text style={styles.grandTotalLabel}>TOTAL AMOUNT</Text>
+        <Text style={styles.grandTotalValue}>₹{data.totalAmount.toFixed(2)}</Text>
       </View>
 
-      {/* Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
+      <View style={styles.divider} />
 
       {/* Payment Details */}
-      <Text style={[baseStyles.paymentDetail, styles.text]}>
-        Payment Mode: {data.paymentMode.toUpperCase()}
-      </Text>
+      <View style={styles.row}>
+        <Text style={styles.label}>Payment Mode:</Text>
+        <Text style={styles.value}>{data.paymentMode.toUpperCase()}</Text>
+      </View>
       {data.paymentReference && (
-        <Text style={[baseStyles.paymentDetail, styles.text]}>
-          Ref: {data.paymentReference}
-        </Text>
+        <View style={styles.row}>
+          <Text style={styles.label}>Ref:</Text>
+          <Text style={styles.value}>{data.paymentReference}</Text>
+        </View>
       )}
       {data.amountPaid !== undefined && (
         <>
-          <Text style={[baseStyles.paymentDetail, styles.text]}>
-            Amount Paid: ₹{data.amountPaid.toFixed(2)}
-          </Text>
+          <View style={styles.row}>
+            <Text style={styles.label}>Amount Paid:</Text>
+            <Text style={styles.value}>₹{data.amountPaid.toFixed(2)}</Text>
+          </View>
           {data.changeAmount !== undefined && data.changeAmount > 0 && (
-            <Text style={[baseStyles.paymentDetail, styles.text]}>
-              Change: ₹{data.changeAmount.toFixed(2)}
-            </Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Change:</Text>
+              <Text style={styles.value}>₹{data.changeAmount.toFixed(2)}</Text>
+            </View>
           )}
         </>
       )}
@@ -226,194 +189,172 @@ const GSTBillTemplate: React.FC<GSTBillTemplateProps> = ({
       {/* Customer Details */}
       {(data.customerName || data.customerPhone) && (
         <>
-          <Text style={[baseStyles.separator, styles.text]}>
-            ----------------------------------------
-          </Text>
+          <View style={styles.divider} />
           {data.customerName && (
-            <Text style={[baseStyles.customerDetail, styles.text]}>
-              Customer: {data.customerName}
-            </Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Customer:</Text>
+              <Text style={styles.value}>{data.customerName}</Text>
+            </View>
           )}
           {data.customerPhone && (
-            <Text style={[baseStyles.customerDetail, styles.text]}>
-              Phone: {data.customerPhone}
-            </Text>
+            <View style={styles.row}>
+              <Text style={styles.label}>Phone:</Text>
+              <Text style={styles.value}>{data.customerPhone}</Text>
+            </View>
           )}
         </>
       )}
 
+      <View style={styles.divider} />
+
       {/* GST Info */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
-      <Text style={[baseStyles.gstInfo, styles.text]}>
+      <Text style={styles.gstInfo}>
         GST @{data.cgstPercentage + data.sgstPercentage}% | ITC Applicable
       </Text>
 
       {/* Footer Note */}
       {data.footerNote && (
         <>
-          <Text style={[baseStyles.separator, styles.text]}>
-            ----------------------------------------
-          </Text>
-          <Text style={[baseStyles.footerNote, styles.text]}>
+          <View style={styles.divider} />
+          <Text style={styles.footerNote}>
             {data.footerNote}
           </Text>
         </>
       )}
 
-      {/* Bottom Separator */}
-      <Text style={[baseStyles.separator, styles.text]}>
-        ----------------------------------------
-      </Text>
+      <View style={styles.bottomSpacer} />
     </View>
   );
 };
 
-// Base styles (common for all paper widths)
-const baseStyles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     backgroundColor: '#FFFFFF',
-    padding: 8,
+    padding: 16,
+    width: '100%',
   },
-  logoContainer: {
+  headerContainer: {
     alignItems: 'center',
-    marginVertical: 8,
-  },
-  logo: {
-    width: 80,
-    height: 80,
-  },
-  separator: {
-    fontSize: 10,
-    color: '#333333',
-    fontFamily: 'monospace',
-    marginVertical: 2,
+    marginBottom: 12,
   },
   businessName: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#000000',
     textAlign: 'center',
-    marginVertical: 2,
+    marginBottom: 4,
   },
   address: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#333333',
     textAlign: 'center',
-    marginVertical: 1,
+    marginBottom: 2,
   },
   businessDetail: {
-    fontSize: 11,
+    fontSize: 13,
     color: '#333333',
     textAlign: 'center',
-    marginVertical: 1,
+    marginBottom: 2,
   },
-  billDetail: {
-    fontSize: 11,
-    color: '#333333',
-    marginVertical: 1,
+  divider: {
+    height: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#CCCCCC',
+    borderStyle: 'dashed',
+    marginVertical: 12,
+    width: '100%',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  label: {
+    fontSize: 14,
+    color: '#666666',
+    flex: 1,
+  },
+  value: {
+    fontSize: 14,
+    color: '#000000',
+    fontWeight: '500',
+    flex: 1,
+    textAlign: 'right',
   },
   itemsHeader: {
     flexDirection: 'row',
-    marginVertical: 2,
+    marginBottom: 4,
   },
   itemsHeaderText: {
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: 'bold',
     color: '#000000',
   },
   itemRow: {
     flexDirection: 'row',
-    marginVertical: 1,
+    marginVertical: 4,
+    alignItems: 'flex-start',
   },
   itemName: {
-    fontSize: 11,
-    color: '#333333',
+    fontSize: 14,
+    color: '#000000',
   },
   itemQuantity: {
-    fontSize: 11,
-    color: '#333333',
+    fontSize: 14,
+    color: '#000000',
   },
   itemRate: {
-    fontSize: 11,
-    color: '#333333',
+    fontSize: 14,
+    color: '#000000',
   },
   itemAmount: {
-    fontSize: 11,
-    color: '#333333',
+    fontSize: 14,
+    color: '#000000',
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginVertical: 1,
+    marginBottom: 4,
   },
   totalLabel: {
-    fontSize: 11,
+    fontSize: 14,
     color: '#333333',
   },
   totalValue: {
-    fontSize: 11,
-    color: '#333333',
+    fontSize: 14,
+    color: '#000000',
+    fontWeight: '600',
     textAlign: 'right',
   },
   grandTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 2,
+    marginTop: 4,
+    marginBottom: 4,
   },
   grandTotalLabel: {
-    fontSize: 13,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#000000',
   },
   grandTotalValue: {
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#000000',
     textAlign: 'right',
   },
-  paymentDetail: {
-    fontSize: 11,
-    color: '#333333',
-    marginVertical: 1,
-  },
-  customerDetail: {
-    fontSize: 11,
-    color: '#333333',
-    marginVertical: 1,
-  },
   gstInfo: {
-    fontSize: 10,
-    color: '#666666',
+    fontSize: 12,
+    color: '#888888',
     textAlign: 'center',
-    marginVertical: 1,
+    marginTop: 4,
   },
   footerNote: {
-    fontSize: 11,
+    fontSize: 14,
     color: '#333333',
     textAlign: 'center',
-    marginVertical: 2,
+    fontStyle: 'italic',
   },
-});
-
-// 58mm paper width styles
-const styles58mm = StyleSheet.create({
-  container: {
-    width: 220, // ~58mm in points
-  },
-  text: {
-    fontSize: 10,
-  },
-});
-
-// 80mm paper width styles
-const styles80mm = StyleSheet.create({
-  container: {
-    width: 302, // ~80mm in points
-  },
-  text: {
-    fontSize: 11,
+  bottomSpacer: {
+    height: 12,
   },
 });
 

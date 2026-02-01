@@ -14,9 +14,7 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
-import { getBills, getItems, getCategories } from '../services/storage';
 import API from '../services/api';
-import { getNetworkStatus } from '../services/sync';
 
 type DashboardScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Dashboard'>;
@@ -110,7 +108,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
   const calculateDateRange = (range: DateRange, days?: number) => {
     let end = new Date();
     end.setHours(23, 59, 59, 999);
-    
+
     let start = new Date();
     start.setHours(0, 0, 0, 0);
 
@@ -142,174 +140,139 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
       const days = customDaysValue ? parseInt(customDaysValue, 10) : undefined;
       const dateRange = calculateDateRange(range, days);
 
-      // ONLINE-FIRST: Always try API first
-      const isOnline = await getNetworkStatus();
-      console.log('🌐 Online-First Mode: Network available:', isOnline);
+      console.log('🌐 Loading dashboard data from API (online-only)...');
 
-      if (isOnline) {
-        console.log('📡 Loading dashboard data from API (online-first)...');
-        try {
-          // Log request parameters
-          const startDate = dateRange.start.toISOString().split('T')[0];
-          const endDate = dateRange.end.toISOString().split('T')[0];
-          console.log('📊 Dashboard API Request - Date Range:', startDate, 'to', endDate);
-          
-          // Check token
-          const token = await import('../services/auth').then(m => m.getAuthToken());
-          console.log('🔑 Auth Token Present:', !!token);
-          
-          // Use API endpoints for accurate server-side data
-          const [stats, sales, itemsData, payments, tax, profit] = await Promise.all([
-            API.dashboard.getStats(),
-            API.dashboard.getSales({
-              start_date: startDate,
-              end_date: endDate,
-            }),
-            API.dashboard.getItems({
-              start_date: startDate,
-              end_date: endDate,
-            }),
-            API.dashboard.getPayments({
-              start_date: startDate,
-              end_date: endDate,
-            }),
-            API.dashboard.getTax({
-              start_date: startDate,
-              end_date: endDate,
-            }),
-            API.dashboard.getProfit({
-              start_date: startDate,
-              end_date: endDate,
-            }),
-          ]);
+      const startDate = dateRange.start.toISOString().split('T')[0];
+      const endDate = dateRange.end.toISOString().split('T')[0];
+      console.log('📊 Dashboard API Request - Date Range:', startDate, 'to', endDate);
 
-          // Log raw API responses
-          console.log('📥 Dashboard API Responses:');
-          console.log('  Stats:', JSON.stringify(stats, null, 2));
-          console.log('  Sales:', JSON.stringify(sales, null, 2));
-          console.log('  Items:', JSON.stringify(itemsData, null, 2));
-          console.log('  Payments:', JSON.stringify(payments, null, 2));
-          console.log('  Tax:', JSON.stringify(tax, null, 2));
-          console.log('  Profit:', JSON.stringify(profit, null, 2));
+      // Use API endpoints for accurate server-side data
+      const [stats, sales, itemsData, payments, tax, profit, pendingData] = await Promise.all([
+        API.dashboard.getStats(),
+        API.dashboard.getSales({
+          start_date: startDate,
+          end_date: endDate,
+        }),
+        API.dashboard.getItems({
+          start_date: startDate,
+          end_date: endDate,
+        }),
+        API.dashboard.getPayments({
+          start_date: startDate,
+          end_date: endDate,
+        }),
+        API.dashboard.getTax({
+          start_date: startDate,
+          end_date: endDate,
+        }),
+        API.dashboard.getProfit({
+          start_date: startDate,
+          end_date: endDate,
+        }),
+        API.dashboard.getPendingPayments(), // Fetches pending payments (deferred/credit bills)
+      ]);
 
-          // Transform API data to dashboard format
-          const paymentSplitData = stats.statistics?.payment_split || payments.payment_split || [];
-          const paymentSplitMap: DashboardData['paymentSplit'] = {
-            cash: { count: 0, amount: 0 },
-            upi: { count: 0, amount: 0 },
-            card: { count: 0, amount: 0 },
-            credit: { count: 0, amount: 0 },
-            other: { count: 0, amount: 0 },
-          };
+      // Log raw API responses
+      console.log('📥 Dashboard API Responses:');
+      console.log('  Stats:', JSON.stringify(stats, null, 2));
+      console.log('  Sales:', JSON.stringify(sales, null, 2));
+      console.log('  Items:', JSON.stringify(itemsData, null, 2));
+      console.log('  Payments:', JSON.stringify(payments, null, 2));
+      console.log('  Tax:', JSON.stringify(tax, null, 2));
+      console.log('  Profit:', JSON.stringify(profit, null, 2));
+      console.log('  Pending:', JSON.stringify(pendingData, null, 2));
 
-          // Map payment split from API
-          if (Array.isArray(paymentSplitData)) {
-            paymentSplitData.forEach((item: any) => {
-              const mode = item.payment_mode?.toLowerCase() || 'other';
-              if (mode in paymentSplitMap) {
-                paymentSplitMap[mode as keyof typeof paymentSplitMap] = {
-                  count: item.transaction_count || item.count || 0,
-                  amount: parseFloat(item.total_amount || item.amount || '0'),
-                };
-              }
-            });
-          } else if (paymentSplitData) {
-            // Handle object format from stats.statistics.payment_split
-            Object.keys(paymentSplitMap).forEach((mode) => {
-              const data = paymentSplitData[mode];
-              if (data) {
-                paymentSplitMap[mode as keyof typeof paymentSplitMap] = {
-                  count: data.count || 0,
-                  amount: parseFloat(data.amount || '0'),
-                };
-              }
-            });
+      // Transform API data to dashboard format
+      const paymentSplitData = stats.statistics?.payment_split || payments.payment_split || [];
+      const paymentSplitMap: DashboardData['paymentSplit'] = {
+        cash: { count: 0, amount: 0 },
+        upi: { count: 0, amount: 0 },
+        card: { count: 0, amount: 0 },
+        credit: { count: 0, amount: 0 },
+        other: { count: 0, amount: 0 },
+      };
+
+      // Map payment split from API
+      if (Array.isArray(paymentSplitData)) {
+        paymentSplitData.forEach((item: any) => {
+          const mode = item.payment_mode?.toLowerCase() || 'other';
+          if (mode in paymentSplitMap) {
+            paymentSplitMap[mode as keyof typeof paymentSplitMap] = {
+              count: item.transaction_count || item.count || 0,
+              amount: parseFloat(item.total_amount || item.amount || '0'),
+            };
           }
-
-          // Calculate pending payments (credit bills)
-          const pendingPayments = paymentSplitMap.credit.amount;
-
-          const data: DashboardData = {
-            totalSales: parseFloat(sales.summary?.total_revenue || stats.statistics?.total_revenue || '0'),
-            totalBills: stats.statistics?.total_bills || stats.total_bills || 0,
-            avgBillValue: stats.avg_bill_value || (stats.total_bills > 0 ? parseFloat(stats.statistics?.total_revenue || '0') / stats.total_bills : 0),
-            gstBills: stats.statistics?.gst_bills || 0,
-            nonGstBills: stats.statistics?.non_gst_bills || 0,
-            totalTaxCollected: parseFloat(tax.summary?.total_tax_collected || '0'),
-            paymentSplit: paymentSplitMap,
-            pendingPayments,
-            mostSoldProduct: itemsData.most_sold && itemsData.most_sold.length > 0
-              ? {
-                  name: itemsData.most_sold[0].item_name || itemsData.most_sold[0].name,
-                  soldCount: parseInt(itemsData.most_sold[0].total_quantity || itemsData.most_sold[0].quantity_sold || '0'),
-                  category: itemsData.most_sold[0].category?.[0] || 'Unknown',
-                  image: itemsData.most_sold[0].image_url,
-                }
-              : null,
-            leastSoldProduct: itemsData.least_sold && itemsData.least_sold.length > 0
-              ? {
-                  name: itemsData.least_sold[0].item_name || itemsData.least_sold[0].name,
-                  soldCount: parseInt(itemsData.least_sold[0].total_quantity || itemsData.least_sold[0].quantity_sold || '0'),
-                  category: itemsData.least_sold[0].category?.[0] || 'Unknown',
-                  image: itemsData.least_sold[0].image_url,
-                }
-              : null,
-            mostSoldCategory: null, // API doesn't provide category breakdown
-            leastSoldCategory: null,
-          };
-
-          console.log('✅ Dashboard data loaded from API successfully');
-          console.log('📊 Final Dashboard Data:', {
-            totalSales: data.totalSales,
-            totalBills: data.totalBills,
-            avgBillValue: data.avgBillValue,
-            gstBills: data.gstBills,
-            nonGstBills: data.nonGstBills,
-            totalTaxCollected: data.totalTaxCollected,
-          });
-          
-          setDashboardData(data);
-          
-          // ONLINE-FIRST: No need to save to local, using live API data
-          console.log('💾 Using live API data (online-first mode)');
-          return;
-        } catch (apiError: any) {
-          console.error('❌ Dashboard API error:', apiError);
-          console.error('Error details:', {
-            message: apiError.message,
-            response: apiError.response?.data,
-            status: apiError.response?.status,
-            config: {
-              url: apiError.config?.url,
-              method: apiError.config?.method,
-              headers: apiError.config?.headers,
-            },
-          });
-          console.warn('⚠️ ONLINE-FIRST: API failed, falling back to local data');
-          // Fall through to local calculation
-        }
+        });
+      } else if (paymentSplitData) {
+        // Handle object format from stats.statistics.payment_split
+        Object.keys(paymentSplitMap).forEach((mode) => {
+          const data = (paymentSplitData as any)[mode];
+          if (data) {
+            paymentSplitMap[mode as keyof typeof paymentSplitMap] = {
+              count: data.count || 0,
+              amount: parseFloat(data.amount || '0'),
+            };
+          }
+        });
       }
 
-      // FALLBACK: Local calculation (offline or API failed)
-      console.log('📴 Loading dashboard data from local storage (fallback)...');
-      const allBills = await getBills();
-      
-      // Filter bills by date range
-      const filteredBills = allBills.filter(bill => {
-        const billDate = new Date(bill.created_at || bill.bill_date || bill.created_at);
-        return billDate >= dateRange.start && billDate <= dateRange.end;
+      // Calculate pending payments using new API endpoint
+      const pendingPayments = parseFloat(pendingData?.total_pending || '0');
+
+      // Use type assertions for dynamic API responses
+      const statsAny = stats as any;
+      const itemsDataAny = itemsData as any;
+
+      const data: DashboardData = {
+        totalSales: parseFloat(sales.summary?.total_revenue || stats.statistics?.total_revenue || '0'),
+        totalBills: stats.statistics?.total_bills || statsAny.total_bills || 0,
+        avgBillValue: statsAny.avg_bill_value || (statsAny.total_bills > 0 ? parseFloat(stats.statistics?.total_revenue || '0') / statsAny.total_bills : 0),
+        gstBills: stats.statistics?.gst_bills || 0,
+        nonGstBills: stats.statistics?.non_gst_bills || 0,
+        totalTaxCollected: parseFloat(tax.summary?.total_tax_collected || '0'),
+        paymentSplit: paymentSplitMap,
+        pendingPayments,
+        mostSoldProduct: itemsDataAny.most_sold && itemsDataAny.most_sold.length > 0
+          ? {
+            name: itemsDataAny.most_sold[0].item_name || itemsDataAny.most_sold[0].name,
+            soldCount: parseInt(itemsDataAny.most_sold[0].total_quantity || itemsDataAny.most_sold[0].quantity_sold || '0'),
+            category: itemsDataAny.most_sold[0].category?.[0] || 'Unknown',
+            image: itemsDataAny.most_sold[0].image_url,
+          }
+          : null,
+        leastSoldProduct: itemsDataAny.least_sold && itemsDataAny.least_sold.length > 0
+          ? {
+            name: itemsDataAny.least_sold[0].item_name || itemsDataAny.least_sold[0].name,
+            soldCount: parseInt(itemsDataAny.least_sold[0].total_quantity || itemsDataAny.least_sold[0].quantity_sold || '0'),
+            category: itemsDataAny.least_sold[0].category?.[0] || 'Unknown',
+            image: itemsDataAny.least_sold[0].image_url,
+          }
+          : null,
+        mostSoldCategory: null, // API doesn't provide category breakdown
+        leastSoldCategory: null,
+      };
+
+      console.log('✅ Dashboard data loaded from API successfully');
+      console.log('📊 Final Dashboard Data:', {
+        totalSales: data.totalSales,
+        totalBills: data.totalBills,
+        avgBillValue: data.avgBillValue,
+        gstBills: data.gstBills,
+        nonGstBills: data.nonGstBills,
+        totalTaxCollected: data.totalTaxCollected,
       });
 
-      // Load items and categories for product analysis
-      const allItems = await getItems();
-      const allCategories = await getCategories();
-
-      // Calculate dashboard metrics
-      const data = calculateDashboardMetrics(filteredBills, allItems, allCategories);
-      
       setDashboardData(data);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
+    } catch (error: any) {
+      console.error('❌ Dashboard API error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+      });
+
+      Alert.alert('Error', 'Failed to load dashboard data. Please check your connection.');
+
       // Set empty data on error
       setDashboardData({
         totalSales: 0,
@@ -336,153 +299,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
     }
   };
 
-  const calculateDashboardMetrics = (
-    bills: any[],
-    items: any[],
-    categories: any[]
-  ): DashboardData => {
-    // Total sales
-    const totalSales = bills.reduce((sum, bill) => sum + (bill.total_amount || 0), 0);
-    
-    // Total bills
-    const totalBills = bills.length;
-    
-    // Average bill value
-    const avgBillValue = totalBills > 0 ? Math.round(totalSales / totalBills) : 0;
 
-    // GST vs Non-GST bills
-    const gstBills = bills.filter(bill => bill.billing_mode === 'gst').length;
-    const nonGstBills = bills.filter(bill => bill.billing_mode === 'non_gst').length;
-
-    // Total tax collected
-    const totalTaxCollected = bills.reduce((sum, bill) => sum + (bill.total_tax || 0), 0);
-
-    // Payment split
-    const paymentSplit: DashboardData['paymentSplit'] = {
-      cash: { count: 0, amount: 0 },
-      upi: { count: 0, amount: 0 },
-      card: { count: 0, amount: 0 },
-      credit: { count: 0, amount: 0 },
-      other: { count: 0, amount: 0 },
-    };
-
-    bills.forEach(bill => {
-      const mode = (bill.payment_mode || 'cash').toLowerCase() as keyof typeof paymentSplit;
-      if (mode in paymentSplit) {
-        paymentSplit[mode].count++;
-        paymentSplit[mode].amount += bill.total_amount || 0;
-      } else {
-        paymentSplit.other.count++;
-        paymentSplit.other.amount += bill.total_amount || 0;
-      }
-    });
-
-    // Pending payments (credit bills)
-    const pendingPayments = paymentSplit.credit.amount;
-    
-    // Track product sales
-    const productSales: { [key: string]: { name: string; count: number; categoryId: string; itemData: any } } = {};
-    
-    // Track category sales
-    const categorySales: { [key: string]: number } = {};
-
-    bills.forEach(bill => {
-      try {
-        const billItems = JSON.parse(bill.items || '[]');
-        
-        billItems.forEach((item: any) => {
-          const itemId = item.id;
-          const quantity = item.quantity || 0;
-          
-          // Track product sales
-          if (!productSales[itemId]) {
-            const itemData = items.find(i => i.id === itemId);
-            productSales[itemId] = {
-              name: item.name,
-              count: 0,
-              categoryId: itemData?.category_ids?.[0] || '',
-              itemData,
-            };
-          }
-          productSales[itemId].count += quantity;
-          
-          // Track category sales
-          const itemData = items.find(i => i.id === itemId);
-          if (itemData && itemData.category_ids && itemData.category_ids.length > 0) {
-            const categoryId = itemData.category_ids[0];
-            categorySales[categoryId] = (categorySales[categoryId] || 0) + quantity;
-          }
-        });
-      } catch (error) {
-        console.error('Error parsing bill items:', error);
-      }
-    });
-
-    // Find most/least sold products
-    const productEntries = Object.entries(productSales);
-    let mostSoldProduct = null;
-    let leastSoldProduct = null;
-
-    if (productEntries.length > 0) {
-      const sortedProducts = productEntries.sort((a, b) => b[1].count - a[1].count);
-      
-      const mostSold = sortedProducts[0][1];
-      const category = categories.find(c => c.id === mostSold.categoryId);
-      mostSoldProduct = {
-        name: mostSold.name,
-        soldCount: mostSold.count,
-        category: category?.name || 'Uncategorized',
-      };
-
-      const leastSold = sortedProducts[sortedProducts.length - 1][1];
-      const leastCategory = categories.find(c => c.id === leastSold.categoryId);
-      leastSoldProduct = {
-        name: leastSold.name,
-        soldCount: leastSold.count,
-        category: leastCategory?.name || 'Uncategorized',
-      };
-    }
-
-    // Find most/least sold categories
-    const categoryEntries = Object.entries(categorySales);
-    let mostSoldCategory = null;
-    let leastSoldCategory = null;
-
-    if (categoryEntries.length > 0) {
-      const sortedCategories = categoryEntries.sort((a, b) => b[1] - a[1]);
-      
-      const mostCat = categories.find(c => c.id === sortedCategories[0][0]);
-      if (mostCat) {
-        mostSoldCategory = {
-          name: mostCat.name,
-          itemsSold: sortedCategories[0][1],
-        };
-      }
-
-      const leastCat = categories.find(c => c.id === sortedCategories[sortedCategories.length - 1][0]);
-      if (leastCat) {
-        leastSoldCategory = {
-          name: leastCat.name,
-          itemsSold: sortedCategories[sortedCategories.length - 1][1],
-        };
-      }
-    }
-
-    return {
-      totalSales,
-      totalBills,
-      avgBillValue,
-      gstBills,
-      nonGstBills,
-      totalTaxCollected,
-      paymentSplit,
-      pendingPayments,
-      mostSoldProduct,
-      leastSoldProduct,
-      mostSoldCategory,
-      leastSoldCategory,
-    };
-  };
 
   const handleRangeSelect = (range: DateRange) => {
     setSelectedRange(range);
@@ -704,7 +521,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
         {hasData ? (
           <>
             {/* Total Sales Card - Clickable */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.card}
               onPress={handleViewAllBills}
               activeOpacity={0.7}
@@ -715,7 +532,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
 
             {/* Total Bills Card - Clickable */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.card}
               onPress={handleViewAllBills}
               activeOpacity={0.7}
@@ -726,7 +543,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             </TouchableOpacity>
 
             {/* Average Bill Value Card - Clickable */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.card}
               onPress={handleViewAllBills}
               activeOpacity={0.7}
@@ -740,7 +557,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Bills Breakdown</Text>
               <View style={styles.breakdownRow}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.breakdownItem}
                   onPress={handleViewGSTBills}
                   activeOpacity={0.7}
@@ -750,7 +567,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                   <Text style={styles.viewDetailsTextSmall}>View →</Text>
                 </TouchableOpacity>
                 <View style={styles.breakdownDivider} />
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.breakdownItem}
                   onPress={handleViewNonGSTBills}
                   activeOpacity={0.7}
@@ -764,7 +581,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
             {/* Total Tax Collected - Clickable */}
             {dashboardData.totalTaxCollected > 0 && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.card}
                 onPress={handleViewGSTBills}
                 activeOpacity={0.7}
@@ -778,10 +595,10 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
             {/* Payment Mode Split - Clickable */}
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Payment Mode Split</Text>
-              <Text style={[styles.metricSubtext, {marginBottom: 10}]}>Tap any payment mode to view bills</Text>
+              <Text style={[styles.metricSubtext, { marginBottom: 10 }]}>Tap any payment mode to view bills</Text>
               <View style={styles.paymentGrid}>
                 {dashboardData.paymentSplit.cash.amount > 0 && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.paymentItem}
                     onPress={handleViewAllBills}
                     activeOpacity={0.7}
@@ -792,7 +609,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                   </TouchableOpacity>
                 )}
                 {dashboardData.paymentSplit.upi.amount > 0 && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.paymentItem}
                     onPress={handleViewAllBills}
                     activeOpacity={0.7}
@@ -803,7 +620,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                   </TouchableOpacity>
                 )}
                 {dashboardData.paymentSplit.card.amount > 0 && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.paymentItem}
                     onPress={handleViewAllBills}
                     activeOpacity={0.7}
@@ -814,7 +631,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                   </TouchableOpacity>
                 )}
                 {dashboardData.paymentSplit.credit.amount > 0 && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.paymentItem}
                     onPress={handleViewAllBills}
                     activeOpacity={0.7}
@@ -825,7 +642,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
                   </TouchableOpacity>
                 )}
                 {dashboardData.paymentSplit.other.amount > 0 && (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     style={styles.paymentItem}
                     onPress={handleViewAllBills}
                     activeOpacity={0.7}
@@ -840,7 +657,7 @@ const DashboardScreen: React.FC<DashboardScreenProps> = ({ navigation }) => {
 
             {/* Pending Payments and Refunds - Clickable */}
             {dashboardData.pendingPayments > 0 && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.card, styles.warningCard]}
                 onPress={handleViewAllBills}
                 activeOpacity={0.7}

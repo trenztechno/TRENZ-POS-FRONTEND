@@ -1,17 +1,17 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {View, Text, StyleSheet, Animated, ActivityIndicator} from 'react-native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import StoreIcon from '../assets/icons/store.svg';
 import AnimatedButton from '../components/AnimatedButton';
-import type {RootStackParamList} from '../types/business.types';
-import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+import type { RootStackParamList } from '../types/business.types';
+// import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type WelcomeScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
 };
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
-  const [isLoading, setIsLoading] = useState(true);
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
+  const [isLoading, setIsLoading] = useState(false);
   const [isReturningUser, setIsReturningUser] = useState(false);
 
   const iconScale = useRef(new Animated.Value(0)).current;
@@ -25,52 +25,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
   const buttonsTranslateY = useRef(new Animated.Value(30)).current;
   const buttonsOpacity = useRef(new Animated.Value(0)).current;
 
+  // Removed trackWelcomeView as it relied on local storage
+  // Analytics can be moved to API/online later if needed
+
   useEffect(() => {
-    trackWelcomeView();
+    startAnimations();
   }, []);
-
-  useEffect(() => {
-    if (!isLoading) {
-      startAnimations();
-    }
-  }, [isLoading]);
-
-  const trackWelcomeView = async () => {
-    try {
-      setIsLoading(true);
-      const settings = await getBusinessSettings();
-
-      // Track welcome screen analytics
-      const viewCount = (settings?.welcome_screen_view_count || 0) + 1;
-      const timestamp = new Date().toISOString();
-      const isFirstView = viewCount === 1;
-
-      // Check if returning user
-      setIsReturningUser(viewCount > 1);
-
-      // Save analytics
-      const saveData: {
-        welcome_screen_view_count: number;
-        last_welcome_view_date: string;
-        first_welcome_view_date?: string;
-      } = {
-        welcome_screen_view_count: viewCount,
-        last_welcome_view_date: timestamp,
-      };
-
-      // Save first view date only on first visit
-      if (isFirstView) {
-        saveData.first_welcome_view_date = timestamp;
-      }
-
-      await saveBusinessSettings(saveData);
-    } catch (error) {
-      console.error('Failed to track welcome view:', error);
-      // Continue anyway
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const startAnimations = () => {
     Animated.sequence([
@@ -186,7 +146,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
             styles.iconContainer,
             {
               opacity: iconOpacity,
-              transform: [{scale: iconScale}],
+              transform: [{ scale: iconScale }],
             },
           ]}>
           <StoreIcon width={80} height={80} />
@@ -197,7 +157,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
             styles.companyNameContainer,
             {
               opacity: companyNameOpacity,
-              transform: [{translateY: companyNameTranslateY}],
+              transform: [{ translateY: companyNameTranslateY }],
             },
           ]}>
           <Text style={styles.companyName}>Trenz POS</Text>
@@ -208,7 +168,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
             styles.titleContainer,
             {
               opacity: titleOpacity,
-              transform: [{translateY: titleTranslateY}],
+              transform: [{ translateY: titleTranslateY }],
             },
           ]}>
           <Text style={styles.title}>
@@ -221,12 +181,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
             styles.subtitleContainer,
             {
               opacity: subtitleOpacity,
-              transform: [{translateY: subtitleTranslateY}],
+              transform: [{ translateY: subtitleTranslateY }],
             },
           ]}>
           <Text style={styles.subtitle}>
-            {isReturningUser 
-              ? 'Sign in or create an account' 
+            {isReturningUser
+              ? 'Sign in or create an account'
               : 'Sign up to get started with your Trenz POS Application'}
           </Text>
         </Animated.View>
@@ -237,7 +197,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({navigation}) => {
           styles.buttonsContainer,
           {
             opacity: buttonsOpacity,
-            transform: [{translateY: buttonsTranslateY}],
+            transform: [{ translateY: buttonsTranslateY }],
           },
         ]}>
         <AnimatedButton

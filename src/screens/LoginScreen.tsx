@@ -12,11 +12,12 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  Modal,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
 import { login } from '../services/auth';
-import { initialSync } from '../services/sync';
+import API from '../services/api';
 
 type LoginScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Login'>;
@@ -27,6 +28,12 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Forgot Password Modal State
+  const [showForgotPasswordModal, setShowForgotPasswordModal] = useState(false);
+  const [forgotUsername, setForgotUsername] = useState('');
+  const [forgotPhone, setForgotPhone] = useState('');
+  const [isVerifying, setIsVerifying] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -64,23 +71,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       const result = await login(username.trim(), password);
 
       if (result.success) {
-        // Login successful - perform initial sync quickly
-        console.log('🔄 Starting initial sync (downloading base data for offline use)...');
-        
-        // Start sync and navigate immediately - don't block on sync
-        // Note: App is now ONLINE-FIRST, so this just ensures offline data availability
-        initialSync().then(syncResult => {
-          if (syncResult.success) {
-            console.log('✅ Initial sync completed - offline data ready');
-          } else {
-            console.warn('⚠️ Sync incomplete:', syncResult.error);
-          }
-        }).catch(error => {
-          console.warn('⚠️ Sync error:', error.message);
-        });
-        
-        // Navigate immediately - app will use ONLINE-FIRST approach
-        console.log('🌐 App will prioritize online API data, with local fallback');
+        // Login successful - navigate directly (online-only mode)
+        console.log('✅ Login successful - navigating to app');
         navigation.replace('ModeSelection');
       } else {
         Alert.alert('Login Failed', result.error || 'Invalid credentials');
@@ -94,23 +86,71 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
   };
 
   const handleForgotPassword = () => {
-    Alert.alert(
-      'Reset Password',
-      'Password reset requires your GST number for verification.\n\nIf your vendor account does not have a GST number on file, please contact support.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Proceed to Reset',
-          onPress: () => {
-            // TODO: Open email client or dialer
-            console.log('Contact support');
+    setShowForgotPasswordModal(true);
+  };
+
+  const handleVerifyCredentials = async () => {
+    if (!forgotUsername.trim()) {
+      Alert.alert('Error', 'Please enter your username');
+      return;
+    }
+
+    if (!forgotPhone.trim()) {
+      Alert.alert('Error', 'Please enter your phone number');
+      return;
+    }
+
+    setIsVerifying(true);
+
+    try {
+      const response = await API.auth.forgotPassword({
+        username: forgotUsername.trim(),
+        phone: forgotPhone.trim(),
+      });
+
+      // Verification successful
+      Alert.alert(
+        'Verification Successful',
+        `Username and phone number verified for ${response.business_name}. You can now reset your password.`,
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowForgotPasswordModal(false);
+              // Navigate to reset password screen with verified credentials
+              navigation.navigate('ResetPassword', {
+                username: forgotUsername.trim(),
+                phone: forgotPhone.trim(),
+                businessName: response.business_name,
+              });
+              // Clear modal fields
+              setForgotUsername('');
+              setForgotPhone('');
+            },
           },
-        },
-      ]
-    );
-    // TODO: Implement full password reset flow
-    // Flow: POST /auth/forgot-password (username + gst_no)
-    // Then: POST /auth/reset-password (username + gst_no + new_password)
+        ]
+      );
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+
+      let errorMessage = 'Failed to verify credentials. Please try again.';
+
+      if (error.response?.data?.details?.non_field_errors) {
+        errorMessage = error.response.data.details.non_field_errors[0];
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      }
+
+      Alert.alert('Verification Failed', errorMessage);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleCloseForgotPasswordModal = () => {
+    setShowForgotPasswordModal(false);
+    setForgotUsername('');
+    setForgotPhone('');
   };
 
   const handleSignupNavigation = () => {
@@ -123,7 +163,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-      
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -220,6 +260,78 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ navigation }) => {
           </View>
         </Animated.View>
       </ScrollView>
+
+      {/* Forgot Password Modal */}
+      <Modal
+        visible={showForgotPasswordModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseForgotPasswordModal}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Reset Password</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter your username and phone number to verify your account
+            </Text>
+
+            {/* Username Input */}
+            <View style={styles.modalInputContainer}>
+              <Text style={styles.modalLabel}>Username</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter username"
+                placeholderTextColor="#999999"
+                value={forgotUsername}
+                onChangeText={setForgotUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!isVerifying}
+              />
+            </View>
+
+            {/* Phone Number Input */}
+            <View style={styles.modalInputContainer}>
+              <Text style={styles.modalLabel}>Phone Number</Text>
+              <TextInput
+                style={styles.modalInput}
+                placeholder="Enter phone number"
+                placeholderTextColor="#999999"
+                value={forgotPhone}
+                onChangeText={setForgotPhone}
+                keyboardType="phone-pad"
+                editable={!isVerifying}
+              />
+              <Text style={styles.modalHelperText}>
+                Use the exact format you entered during registration
+              </Text>
+            </View>
+
+            {/* Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={handleCloseForgotPasswordModal}
+                disabled={isVerifying}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalVerifyButton, isVerifying && styles.modalButtonDisabled]}
+                onPress={handleVerifyCredentials}
+                disabled={isVerifying}
+              >
+                {isVerifying ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.modalVerifyButtonText}>Verify</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -344,6 +456,99 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
     color: '#C62828',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666666',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  modalInputContainer: {
+    marginBottom: 16,
+  },
+  modalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1A1A1A',
+    marginBottom: 8,
+  },
+  modalInput: {
+    height: 50,
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    color: '#1A1A1A',
+    backgroundColor: '#FAFAFA',
+  },
+  modalHelperText: {
+    fontSize: 12,
+    color: '#666666',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalButton: {
+    flex: 1,
+    height: 50,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCancelButton: {
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666666',
+  },
+  modalVerifyButton: {
+    backgroundColor: '#C62828',
+  },
+  modalVerifyButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  modalButtonDisabled: {
+    opacity: 0.6,
   },
 });
 

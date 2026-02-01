@@ -15,7 +15,8 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import CalenderIcon from '../assets/icons/CalenderIcon.svg';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+// import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 type SelectSummaryDateScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SelectSummaryDate'>;
@@ -24,12 +25,15 @@ type SelectSummaryDateScreenProps = {
 // Define the available units
 type TimeUnit = 'days' | 'weeks' | 'months' | 'years';
 
+const LAST_AMOUNT_KEY = '@ui_pref/summary_amount';
+const LAST_UNIT_KEY = '@ui_pref/summary_unit';
+
 const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navigation }) => {
   // State for the number input
   const [amount, setAmount] = useState('');
   // State for the selected unit (default to days)
   const [selectedUnit, setSelectedUnit] = useState<TimeUnit>('days');
-  
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -60,17 +64,14 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
   const loadLastPreference = async () => {
     try {
       setIsLoading(true);
-      const settings = await getBusinessSettings();
-      
-      if (settings) {
-        // Restore last used amount
-        if (settings.last_summary_custom_amount) {
-          setAmount(settings.last_summary_custom_amount.toString());
-        }
-        // Restore last used unit
-        if (settings.last_summary_custom_unit) {
-          setSelectedUnit(settings.last_summary_custom_unit as TimeUnit);
-        }
+      const savedAmount = await AsyncStorage.getItem(LAST_AMOUNT_KEY);
+      const savedUnit = await AsyncStorage.getItem(LAST_UNIT_KEY);
+
+      if (savedAmount) {
+        setAmount(savedAmount);
+      }
+      if (savedUnit) {
+        setSelectedUnit(savedUnit as TimeUnit);
       }
     } catch (error) {
       console.error('Failed to load summary preferences:', error);
@@ -113,20 +114,15 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
     try {
       setIsSaving(true);
       const rangeData = calculateDateRange();
-      
+
       if (!rangeData) {
         setIsSaving(false);
         return;
       }
 
-      // Save user's preference to local storage
-      const saveData = {
-        last_summary_custom_amount: parseInt(amount, 10),
-        last_summary_custom_unit: selectedUnit,
-        last_summary_date: new Date().toISOString(),
-      };
-
-      await saveBusinessSettings(saveData);
+      // Save user's preference to local storage (AsyncStorage)
+      await AsyncStorage.setItem(LAST_AMOUNT_KEY, amount);
+      await AsyncStorage.setItem(LAST_UNIT_KEY, selectedUnit);
 
       // Navigate to downloading screen with the calculated dates
       // NOTE: We pass the start/end ISO strings so the API can use them directly
@@ -160,14 +156,14 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
     const start = new Date(startDateStr);
     const end = new Date();
     const diffTime = Math.abs(end.getTime() - start.getTime());
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
 
   const getSummaryText = () => {
     if (!amount) return '';
     const num = parseInt(amount, 10);
     if (isNaN(num)) return '';
-    
+
     // Singular/Plural handling
     const unitLabel = num === 1 ? selectedUnit.slice(0, -1) : selectedUnit;
     return `Summary will include data for the last ${num} ${unitLabel}`;
@@ -252,30 +248,30 @@ const SelectSummaryDateScreen: React.FC<SelectSummaryDateScreenProps> = ({ navig
 
           {/* Input Section */}
           <View style={styles.inputSection}>
-             <Text style={styles.sectionLabel}>Enter Duration</Text>
-             <View style={styles.customInputContainer}>
-                <TextInput
-                  style={styles.numberInput}
-                  value={amount}
-                  onChangeText={setAmount}
-                  placeholder="e.g. 1, 3, 6"
-                  placeholderTextColor="rgba(51, 51, 51, 0.4)"
-                  keyboardType="numeric"
-                  editable={!isSaving}
-                  maxLength={3}
-                />
-                <Text style={styles.inputSuffix}>
-                  {selectedUnit.toUpperCase()}
-                </Text>
+            <Text style={styles.sectionLabel}>Enter Duration</Text>
+            <View style={styles.customInputContainer}>
+              <TextInput
+                style={styles.numberInput}
+                value={amount}
+                onChangeText={setAmount}
+                placeholder="e.g. 1, 3, 6"
+                placeholderTextColor="rgba(51, 51, 51, 0.4)"
+                keyboardType="numeric"
+                editable={!isSaving}
+                maxLength={3}
+              />
+              <Text style={styles.inputSuffix}>
+                {selectedUnit.toUpperCase()}
+              </Text>
             </View>
-            
+
             {/* Dynamic Summary Text */}
             <View style={styles.summaryTextContainer}>
-               {amount ? (
-                 <Text style={styles.summaryText}>{getSummaryText()}</Text>
-               ) : (
-                 <Text style={styles.placeholderText}>Enter a number above to see details</Text>
-               )}
+              {amount ? (
+                <Text style={styles.summaryText}>{getSummaryText()}</Text>
+              ) : (
+                <Text style={styles.placeholderText}>Enter a number above to see details</Text>
+              )}
             </View>
           </View>
 
@@ -371,7 +367,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  
+
   // Unit Selection Styles
   unitContainer: {
     gap: 12,

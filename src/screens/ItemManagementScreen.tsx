@@ -15,7 +15,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList, MenuItem } from '../types/business.types';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { getItems, getCategories, deleteItem } from '../services/storage';
+import API from '../services/api';
 
 type ItemManagementScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ItemManagement'>;
@@ -105,18 +105,56 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
     try {
       setIsLoading(true);
 
-      // Load items from database
-      const itemsData = await getItems();
-      setItems(itemsData);
+      console.log('🌐 Loading items from API (online-only)...');
 
-      // Load categories from database
-      const categoriesData = await getCategories();
-      const categoryNames = categoriesData.map(cat => cat.name);
+      // Load from API only
+      const [apiItems, apiCategories] = await Promise.all([
+        API.items.getAll(),
+        API.categories.getAll(),
+      ]);
+
+      // Map API items to MenuItem format
+      const mappedItems: MenuItem[] = apiItems.map(item => {
+        const categoryId = item.category_ids?.[0] || '';
+        const category = apiCategories.find(cat => cat.id === categoryId);
+
+        return {
+          id: item.id,
+          name: item.name,
+          price: parseFloat(String(item.price || 0)),
+          mrp_price: item.mrp_price ? parseFloat(String(item.mrp_price)) : undefined,
+          price_type: item.price_type,
+          gst_percentage: item.gst_percentage ? parseFloat(String(item.gst_percentage)) : 0,
+          veg_nonveg: item.veg_nonveg,
+          additional_discount: item.additional_discount ? parseFloat(String(item.additional_discount)) : 0,
+          category: category?.name || 'Uncategorized',
+          category_ids: item.category_ids || [],
+          categories: item.categories_list,
+          image: item.image_url,
+          image_url: item.image_url,
+          image_path: item.image,
+          description: item.description,
+          stock_quantity: item.stock_quantity,
+          sku: item.sku,
+          barcode: item.barcode,
+          is_active: item.is_active,
+          sort_order: item.sort_order,
+        };
+      });
+
+      setItems(mappedItems);
+
+      const categoryNames = apiCategories.map(cat => cat.name);
       setCategories(['All Items', ...categoryNames]);
+
+      console.log('✅ Loaded from API:', {
+        items: mappedItems.length,
+        categories: categoryNames.length,
+      });
 
     } catch (error) {
       console.error('Failed to load data:', error);
-      Alert.alert('Error', 'Failed to load items and categories');
+      Alert.alert('Error', 'Failed to load items and categories. Please check your connection.');
     } finally {
       setIsLoading(false);
     }
@@ -133,12 +171,12 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
     try {
       setIsDeleting(true);
 
-      // Delete from database
-      await deleteItem(itemToDelete.id);
+      // Delete via API
+      await API.items.delete(itemToDelete.id);
 
       // Update local state
       setItems(items.filter((item) => item.id !== itemToDelete.id));
-      
+
       setDeleteModalVisible(false);
       setItemToDelete(null);
 
@@ -162,6 +200,22 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
 
   const handleAddItem = () => {
     navigation.navigate('AddItem');
+  };
+
+  const handleToggleStatus = async (item: MenuItem) => {
+    try {
+      const newStatus = !item.is_active;
+      // Optimistic update
+      setItems(items.map(i => i.id === item.id ? { ...i, is_active: newStatus } : i));
+
+      await API.items.updateStatus(item.id, newStatus);
+      console.log(`Item ${item.name} status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Failed to update item status:', error);
+      Alert.alert('Error', 'Failed to update status');
+      // Revert optimistic update
+      setItems(items.map(i => i.id === item.id ? { ...i, is_active: item.is_active } : i));
+    }
   };
 
   const getCategoryDisplay = (item: MenuItem) => {
@@ -338,13 +392,25 @@ const ItemManagementScreen: React.FC<ItemManagementScreenProps> = ({ navigation 
                 <View style={styles.itemInfo}>
                   <View style={styles.itemHeader}>
                     <Text style={styles.itemName}>{item.name}</Text>
-                    <TouchableOpacity
-                      onPress={() => handleEditItem(item)}
-                      activeOpacity={0.7}
-                      style={styles.editButton}
-                    >
-                      <Icon name="pencil-outline" size={20} color="#C62828" />
-                    </TouchableOpacity>
+                    <View style={styles.actions}>
+                      <TouchableOpacity
+                        onPress={() => handleToggleStatus(item)}
+                        style={[styles.statusButton, item.is_active ? styles.statusActive : styles.statusInactive]}
+                        activeOpacity={0.7}
+                      >
+                        <View style={[styles.statusDot, !item.is_active && styles.statusDotInactive]} />
+                        <Text style={[styles.statusText, !item.is_active && styles.statusTextInactive]}>
+                          {item.is_active ? 'Active' : 'Hidden'}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        onPress={() => handleEditItem(item)}
+                        activeOpacity={0.7}
+                        style={styles.editButton}
+                      >
+                        <Icon name="pencil-outline" size={20} color="#C62828" />
+                      </TouchableOpacity>
+                    </View>
                   </View>
 
                   <Text style={styles.itemPrice}>₹{item.price.toFixed(2)}</Text>
@@ -583,6 +649,45 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333333',
     flex: 1,
+  },
+  actions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  statusButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+    borderWidth: 1,
+  },
+  statusActive: {
+    backgroundColor: '#E8F5E9',
+    borderColor: '#C8E6C9',
+  },
+  statusInactive: {
+    backgroundColor: '#FFEBEE',
+    borderColor: '#FFCDD2',
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#4CAF50',
+  },
+  statusDotInactive: {
+    backgroundColor: '#EF5350',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#2E7D32',
+  },
+  statusTextInactive: {
+    color: '#C62828',
   },
   editButton: {
     padding: 4,

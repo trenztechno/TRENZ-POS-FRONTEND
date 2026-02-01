@@ -1,10 +1,9 @@
 /**
  * SetAdminPinScreen.tsx
  * 
- * This screen handles setting up a LOCAL admin PIN for admin feature access.
- * This is NOT related to API authentication - it's a local security layer.
+ * This screen handles setting up an admin PIN for admin feature access.
+ * The PIN is stored securely on the server via API.
  * 
- * The admin PIN is stored locally (hashed) in business settings.
  * This is separate from the vendor account password used for API login.
  */
 import React, { useState, useEffect, useRef } from 'react';
@@ -22,8 +21,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LockIcon from '../assets/icons/LockIcon.svg';
 import { RootStackParamList } from '../types/business.types';
-import { saveBusinessSettings } from '../services/storage';
-import CryptoJS from 'crypto-js';
+import API from '../services/api';
 
 type SetAdminPinScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'SetAdminPin'>;
@@ -73,20 +71,16 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
     ]).start();
   };
 
-  const hashPin = (pinToHash: string): string => {
-    return CryptoJS.SHA256(pinToHash).toString();
-  };
-
   const handleContinue = () => {
     if (step === 'enter') {
       // Validate PIN
-      if (pin.length !== 4) {
-        setError('PIN must be 4 digits');
+      if (pin.length < 4) {
+        setError('PIN must be at least 4 digits');
         shakeAnimation();
         return;
       }
 
-      if (!/^\d{4}$/.test(pin)) {
+      if (!/^\d+$/.test(pin)) {
         setError('PIN must contain only numbers');
         shakeAnimation();
         return;
@@ -104,7 +98,7 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
         return;
       }
 
-      // Save PIN
+      // Save PIN via API
       savePin();
     }
   };
@@ -112,14 +106,11 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
   const savePin = async () => {
     try {
       setIsSaving(true);
-      
-      const hashedPin = hashPin(pin);
-      const timestamp = new Date().toISOString();
-      
-      // Save PIN and timestamp to business settings
-      await saveBusinessSettings({
-        admin_pin: hashedPin,
-        admin_pin_set_date: timestamp,
+
+      // Set PIN via API
+      await API.auth.securityPin.set({
+        pin: pin,
+        pin_confirm: confirmPin,
       });
 
       Alert.alert(
@@ -132,9 +123,10 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
           },
         ]
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to save PIN:', error);
-      Alert.alert('Error', 'Failed to save PIN. Please try again.');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to save PIN. Please try again.';
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -187,8 +179,8 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
           {step === 'enter' ? 'Set Admin PIN' : 'Confirm Admin PIN'}
         </Text>
         <Text style={styles.subtitle}>
-          {step === 'enter' 
-            ? 'Create a 4-digit PIN to secure admin access' 
+          {step === 'enter'
+            ? 'Create a 4-digit PIN to secure admin access'
             : 'Re-enter your PIN to confirm'}
         </Text>
 
@@ -244,8 +236,8 @@ const SetAdminPinScreen: React.FC<SetAdminPinScreenProps> = ({ navigation }) => 
 
           {/* Info Text */}
           <Text style={styles.infoText}>
-            {step === 'enter' 
-              ? 'Choose a PIN you can remember easily' 
+            {step === 'enter'
+              ? 'Choose a PIN you can remember easily'
               : 'Make sure both PINs match'}
           </Text>
         </Animated.View>

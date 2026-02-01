@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,36 +7,63 @@ import {
   StatusBar,
   ScrollView,
   Animated,
-  Clipboard,
   ActivityIndicator,
   Alert,
+  Modal,
+  TextInput,
+  RefreshControl,
+  Image,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
-import QRCode from 'react-native-qrcode-svg';
-import { getUserData } from '../services/auth';
-import { getBusinessSettings } from '../services/storage';
+import Icon from 'react-native-vector-icons/Ionicons';
+import API from '../services/api';
 
 type AddPeopleScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'AddPeople'>;
 };
 
-type CopyState = 'idle' | 'copying' | 'copied';
+type StaffUser = {
+  id: number;
+  username: string;
+  email: string;
+  role: 'owner' | 'staff';
+  created_at: string;
+};
 
 const AddPeopleScreen: React.FC<AddPeopleScreenProps> = ({ navigation }) => {
-  const [joinCode, setJoinCode] = useState('');
-  const [businessName, setBusinessName] = useState('');
+  const [users, setUsers] = useState<StaffUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Add Staff Modal State
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newUsername, setNewUsername] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [isAddingUser, setIsAddingUser] = useState(false);
+
+  // Remove Staff State
+  const [userToRemove, setUserToRemove] = useState<StaffUser | null>(null);
+  const [showRemovePinModal, setShowRemovePinModal] = useState(false);
+  const [adminPin, setAdminPin] = useState('');
+  const [isRemovingUser, setIsRemovingUser] = useState(false);
+
+  // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
 
   useEffect(() => {
-    loadBusinessData();
+    fetchUsers();
   }, []);
 
-  useEffect(() => {
-    if (!isLoading) {
+  const fetchUsers = async () => {
+    try {
+      if (!isRefreshing) setIsLoading(true);
+      const data = await API.auth.staff.list();
+      setUsers(data.users);
+
+      // Animate in
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -49,196 +76,297 @@ const AddPeopleScreen: React.FC<AddPeopleScreenProps> = ({ navigation }) => {
           useNativeDriver: true,
         }),
       ]).start();
-    }
-  }, [isLoading]);
-
-  const loadBusinessData = async () => {
-    try {
-      // Get user data (contains vendor_id)
-      const userData = await getUserData();
-      
-      if (!userData) {
-        Alert.alert('Error', 'Please login to continue');
-        navigation.goBack();
-        return;
-      }
-
-      // Get business settings
-      const settings = await getBusinessSettings();
-      
-      // Use vendor_id as join code
-      const code = userData.vendor_id || userData.user_id || 'DEMO123';
-      setJoinCode(code);
-      
-      // Get business name from settings or userData
-      const name = settings?.business_name || userData.business_name || 'My Business';
-      setBusinessName(name);
-
     } catch (error) {
-      console.error('Failed to load business data:', error);
-      Alert.alert('Error', 'Failed to load business information');
-      // Set fallback values
-      setJoinCode('DEMO123');
-      setBusinessName('My Business');
+      console.error('Failed to fetch users:', error);
+      Alert.alert('Error', 'Failed to load staff list');
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
-  const handleCopyCode = async () => {
-    setCopyState('copying');
-    
-    // Copy to clipboard
-    Clipboard.setString(joinCode);
-    
-    // Show copying state briefly
-    setTimeout(() => {
-      setCopyState('copied');
-      
-      // Reset to idle after 2 seconds
-      setTimeout(() => {
-        setCopyState('idle');
-      }, 2000);
-    }, 500);
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    fetchUsers();
   };
 
-  const getButtonText = () => {
-    switch (copyState) {
-      case 'copying':
-        return 'Copying...';
-      case 'copied':
-        return 'Copied';
-      default:
-        return 'Copy Code';
+  const handleAddStaff = async () => {
+    if (!newUsername || !newPassword || !newPin) {
+      Alert.alert('Missing Fields', 'Please fill in all fields');
+      return;
+    }
+
+    if (newPin.length < 4) {
+      Alert.alert('Invalid PIN', 'Security PIN must be at least 4 digits');
+      return;
+    }
+
+    // Basic username validation
+    if (newUsername.length < 3) {
+      Alert.alert('Invalid Username', 'Username must be at least 3 characters');
+      return;
+    }
+
+    setIsAddingUser(true);
+    try {
+      await API.auth.staff.create({
+        username: newUsername,
+        password: newPassword,
+        security_pin: newPin,
+      });
+
+      Alert.alert('Success', 'Staff member added successfully');
+      setShowAddModal(false);
+      resetAddForm();
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Failed to add staff:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to create staff account';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsAddingUser(false);
     }
   };
 
-  const getButtonStyle = () => {
-    switch (copyState) {
-      case 'copied':
-        return styles.copyButtonCopied;
-      default:
-        return styles.copyButton;
-    }
+  const resetAddForm = () => {
+    setNewUsername('');
+    setNewPassword('');
+    setNewPin('');
   };
 
-  const getButtonTextStyle = () => {
-    switch (copyState) {
-      case 'copied':
-        return styles.copyButtonTextCopied;
-      default:
-        return styles.copyButtonText;
-    }
+  const initiateRemoveUser = (user: StaffUser) => {
+    setUserToRemove(user);
+    setAdminPin('');
+    setShowRemovePinModal(true);
   };
 
-  if (isLoading) {
-    return (
-      <View style={[styles.container, styles.loadingContainer]}>
-        <ActivityIndicator size="large" color="#C62828" />
-      </View>
-    );
-  }
+  const handleRemoveStaff = async () => {
+    if (!userToRemove || !adminPin) return;
+
+    setIsRemovingUser(true);
+    try {
+      await API.auth.staff.remove(userToRemove.id, adminPin);
+      Alert.alert('Success', 'Staff member removed successfully');
+      setShowRemovePinModal(false);
+      setUserToRemove(null);
+      setAdminPin('');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Failed to remove staff:', error);
+      const errorMessage = error.response?.data?.message || 'Failed to remove staff member. Check your PIN.';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setIsRemovingUser(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
-      <Animated.View
-        style={[
-          styles.header,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
+      <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
         >
-          <Text style={styles.backArrow}>←</Text>
+          <Icon name="arrow-back" size={24} color="#C62828" />
         </TouchableOpacity>
-
-        <View style={styles.headerText}>
-          <Text style={styles.title}>Add People</Text>
-          <Text style={styles.subtitle}>Invite staff to join {businessName}</Text>
-        </View>
-      </Animated.View>
+        <Text style={styles.headerTitle}>Team Management</Text>
+        <View style={{ width: 44 }} />
+      </View>
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} colors={['#C62828']} />
+        }
       >
-        {/* QR Code Card */}
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [
-                {
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [20, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.cardTitle}>Invite via QR Code</Text>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Your Team</Text>
+          <Text style={styles.sectionSubtitle}>Manage access for your business</Text>
+        </View>
 
-          <View style={styles.qrContainer}>
-            <View style={styles.qrCodeBox}>
-              <QRCode
-                value={`business_invite_${joinCode}`}
-                size={240}
-                backgroundColor="#FFFFFF"
-                color="#000000"
-              />
+        {isLoading && !isRefreshing ? (
+          <ActivityIndicator size="large" color="#C62828" style={{ marginTop: 40 }} />
+        ) : (
+          <Animated.View style={{ opacity: fadeAnim, transform: [{ translateY: slideAnim }] }}>
+            {/* Owner Section - Always First */}
+            {users.filter(u => u.role === 'owner').map(user => (
+              <View key={user.id} style={[styles.userCard, styles.ownerCard]}>
+                <View style={styles.userIconContainer}>
+                  <Text style={styles.userInitial}>{user.username.charAt(0).toUpperCase()}</Text>
+                  <View style={styles.ownerBadge}>
+                    <Icon name="star" size={10} color="#FFF" />
+                  </View>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{user.username}</Text>
+                  <Text style={styles.userRole}>Owner (You)</Text>
+                  <Text style={styles.userEmail}>{user.email}</Text>
+                </View>
+              </View>
+            ))}
+
+            {/* Staff Section */}
+            {users.filter(u => u.role !== 'owner').length > 0 ? (
+              users
+                .filter(u => u.role !== 'owner')
+                .map(user => (
+                  <View key={user.id} style={styles.userCard}>
+                    <View style={[styles.userIconContainer, styles.staffIcon]}>
+                      <Text style={[styles.userInitial, styles.staffInitial]}>
+                        {user.username.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={styles.userInfo}>
+                      <Text style={styles.userName}>{user.username}</Text>
+                      <Text style={styles.userRole}>Staff</Text>
+                      <Text style={styles.joinedData}>Added on {new Date(user.created_at).toLocaleDateString()}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => initiateRemoveUser(user)}
+                    >
+                      <Icon name="trash-outline" size={20} color="#C62828" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+            ) : (
+              <View style={styles.emptyState}>
+                <Icon name="people-outline" size={48} color="#CCC" />
+                <Text style={styles.emptyText}>No staff members added yet</Text>
+              </View>
+            )}
+          </Animated.View>
+        )}
+      </ScrollView>
+
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowAddModal(true)}
+      >
+        <Icon name="add" size={30} color="#FFFFFF" />
+      </TouchableOpacity>
+
+      {/* Add Staff Modal */}
+      <Modal
+        visible={showAddModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowAddModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Add New Staff</Text>
+              <TouchableOpacity onPress={() => setShowAddModal(false)}>
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
             </View>
 
-            <Text style={styles.qrDescription}>Scan this QR to join business</Text>
-            <Text style={styles.qrSubtext}>QR code refreshes automatically</Text>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.inputLabel}>Username</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter username"
+                value={newUsername}
+                onChangeText={setNewUsername}
+                autoCapitalize="none"
+              />
+
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter password"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                secureTextEntry
+              />
+
+              <Text style={styles.inputLabel}>Security PIN (for Login)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter 4-6 digit PIN"
+                value={newPin}
+                onChangeText={setNewPin}
+                keyboardType="numeric"
+                maxLength={6}
+                secureTextEntry
+              />
+
+              <View style={styles.infoBox}>
+                <Icon name="information-circle-outline" size={20} color="#666" />
+                <Text style={styles.infoText}>
+                  Staff will use this username and password to log in. The PIN is used for quick access.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={handleAddStaff}
+              disabled={isAddingUser}
+            >
+              {isAddingUser ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.submitButtonText}>Create Account</Text>
+              )}
+            </TouchableOpacity>
           </View>
-        </Animated.View>
+        </View>
+      </Modal>
 
-        {/* Join Code Card */}
-        <Animated.View
-          style={[
-            styles.card,
-            {
-              opacity: fadeAnim,
-              transform: [
-                {
-                  translateY: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.cardTitle}>Join Code</Text>
+      {/* Remove User Confirmation Modal */}
+      <Modal
+        visible={showRemovePinModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowRemovePinModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={[styles.modalContent, styles.smallModal]}>
+            <Text style={styles.modalTitle}>Confirm Removal</Text>
+            <Text style={styles.modalSubtitle}>
+              Enter your Admin PIN to remove {userToRemove?.username}
+            </Text>
 
-          <View style={styles.codeContainer}>
-            <Text style={styles.codeText}>{joinCode}</Text>
-            <Text style={styles.codeDescription}>Enter this code to join</Text>
+            <TextInput
+              style={styles.pinInput}
+              value={adminPin}
+              onChangeText={setAdminPin}
+              placeholder="Enter Admin PIN"
+              keyboardType="numeric"
+              maxLength={6}
+              secureTextEntry
+              autoFocus
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalActionBtn, styles.cancelBtn]}
+                onPress={() => setShowRemovePinModal(false)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalActionBtn, styles.deleteBtn]}
+                onPress={handleRemoveStaff}
+                disabled={isRemovingUser}
+              >
+                {isRemovingUser ? (
+                  <ActivityIndicator color="#FFF" size="small" />
+                ) : (
+                  <Text style={styles.deleteBtnText}>Remove</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
-
-          <TouchableOpacity
-            style={getButtonStyle()}
-            onPress={handleCopyCode}
-            activeOpacity={0.9}
-            disabled={copyState !== 'idle'}
-          >
-            <Text style={getButtonTextStyle()}>{getButtonText()}</Text>
-          </TouchableOpacity>
-        </Animated.View>
-      </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -246,209 +374,272 @@ const AddPeopleScreen: React.FC<AddPeopleScreenProps> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F2',
-  },
-  loadingContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#F8F9FA',
   },
   header: {
     backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingTop: 70,
-    paddingBottom: 16,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backArrow: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#C62828',
-    lineHeight: 21,
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#333333',
-    letterSpacing: -0.26,
-    lineHeight: 33,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#999999',
-    letterSpacing: -0.31,
-    lineHeight: 24,
-  },
-  scrollContent: {
-    padding: 16,
-    paddingTop: 32,
-    gap: 34,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 0.6,
-    borderColor: '#E0E0E0',
-    borderRadius: 16,
-    padding: 21,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#EEEEEE',
     elevation: 2,
   },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333333',
-    letterSpacing: -0.44,
-    lineHeight: 27,
-    marginBottom: 16,
-  },
-  qrContainer: {
-    alignItems: 'center',
-    gap: 12,
-  },
-  qrCodeBox: {
-    width: 256,
-    height: 256,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 3.62,
-    borderColor: '#E0E0E0',
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+  backButton: {
     padding: 8,
   },
-  qrPlaceholder: {
-    width: 240,
-    height: 240,
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  content: {
+    padding: 20,
+    paddingBottom: 100,
+  },
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: '#666',
+  },
+  userCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#EEEEEE',
+  },
+  ownerCard: {
+    borderColor: '#C62828',
+    borderWidth: 1,
+    backgroundColor: '#FFF5F5',
+  },
+  userIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#C62828',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  qrPattern: {
-    width: '100%',
-    height: '100%',
+    marginRight: 16,
     position: 'relative',
   },
-  qrCorner: {
+  staffIcon: {
+    backgroundColor: '#F5F5F5',
+  },
+  userInitial: {
+    color: '#FFF',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  staffInitial: {
+    color: '#666',
+  },
+  ownerBadge: {
     position: 'absolute',
-    width: 50,
-    height: 50,
-    borderWidth: 6,
-    borderColor: '#000000',
-  },
-  qrCornerTL: {
-    top: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderBottomWidth: 0,
-  },
-  qrCornerTR: {
-    top: 0,
-    right: 0,
-    borderLeftWidth: 0,
-    borderBottomWidth: 0,
-  },
-  qrCornerBL: {
-    bottom: 0,
-    left: 0,
-    borderRightWidth: 0,
-    borderTopWidth: 0,
-  },
-  qrDots: {
-    position: 'absolute',
-    top: '35%',
-    left: '35%',
-    gap: 8,
-  },
-  qrDotRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  qrDot: {
-    width: 10,
-    height: 10,
-    backgroundColor: '#000000',
-  },
-  qrDescription: {
-    fontSize: 16,
-    color: '#333333',
-    textAlign: 'center',
-    letterSpacing: -0.31,
-    lineHeight: 24,
-  },
-  qrSubtext: {
-    fontSize: 16,
-    color: '#999999',
-    textAlign: 'center',
-    letterSpacing: -0.31,
-    lineHeight: 24,
-  },
-  codeContainer: {
-    backgroundColor: '#F2F2F2',
-    borderRadius: 16,
-    padding: 24,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  codeText: {
-    fontSize: 16,
-    color: '#333333',
-    letterSpacing: 1.29,
-    lineHeight: 24,
-    fontWeight: '400',
-  },
-  codeDescription: {
-    fontSize: 16,
-    color: '#999999',
-    textAlign: 'center',
-    letterSpacing: -0.31,
-    lineHeight: 24,
-  },
-  copyButton: {
-    height: 48,
-    borderWidth: 1.81,
-    borderColor: '#C62828',
-    borderRadius: 10,
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFD700',
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFF',
   },
-  copyButtonText: {
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
     fontSize: 16,
     fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  userRole: {
+    fontSize: 12,
     color: '#C62828',
-    letterSpacing: -0.31,
-    lineHeight: 24,
+    fontWeight: '500',
+    textTransform: 'uppercase',
   },
-  copyButtonCopied: {
-    height: 48,
-    borderWidth: 1.81,
-    borderColor: '#10B981',
-    borderRadius: 10,
+  userEmail: {
+    fontSize: 12,
+    color: '#666',
+  },
+  joinedData: {
+    fontSize: 12,
+    color: '#999',
+  },
+  removeButton: {
+    padding: 8,
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 40,
+    opacity: 0.6,
+  },
+  emptyText: {
+    marginTop: 12,
+    color: '#666',
+    fontSize: 16,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#C62828',
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
-  copyButtonTextCopied: {
+  // Modal Styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+    width: '100%',
+    maxHeight: '80%',
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  smallModal: {
+    width: '85%',
+    padding: 24,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    lineHeight: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: '#333',
+    backgroundColor: '#FAFAFA',
+  },
+  pinInput: {
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 24,
+    color: '#333',
+    textAlign: 'center',
+    letterSpacing: 8,
+    backgroundColor: '#FAFAFA',
+    marginBottom: 24,
+  },
+  infoBox: {
+    flexDirection: 'row',
+    backgroundColor: '#F0F7FF',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 24,
+    marginBottom: 8,
+    gap: 12,
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#444',
+    lineHeight: 18,
+  },
+  submitButton: {
+    backgroundColor: '#C62828',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  submitButtonText: {
+    color: '#FFF',
     fontSize: 16,
     fontWeight: '600',
-    color: '#10B981',
-    letterSpacing: -0.31,
-    lineHeight: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalActionBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelBtn: {
+    backgroundColor: '#F5F5F5',
+  },
+  deleteBtn: {
+    backgroundColor: '#C62828',
+  },
+  cancelBtnText: {
+    color: '#666',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  deleteBtnText: {
+    color: '#FFF',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
 

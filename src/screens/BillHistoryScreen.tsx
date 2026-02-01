@@ -16,7 +16,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../types/business.types';
 import { Bill as APIBill, BillItem } from '../types/api.types';
-import { getBills } from '../services/storage';
 import API from '../services/api';
 import { getNetworkStatus } from '../services/sync';
 
@@ -50,11 +49,11 @@ type DateFilterType = 'days' | 'weeks' | 'months' | 'years' | 'calendar';
 
 const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route }) => {
   const { filterType, startDate, endDate, title } = route.params;
-  
+
   // Initialize with dashboard's date range
   const initialStartDate = startDate ? new Date(startDate) : new Date();
   const initialEndDate = endDate ? new Date(endDate) : new Date();
-  
+
   const [bills, setBills] = useState<LocalBill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBill, setSelectedBill] = useState<LocalBill | null>(null);
@@ -77,16 +76,16 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
       bill_number: apiBill.bill_number,
       billing_mode: apiBill.billing_mode,
       bill_date: apiBill.bill_date,
-      total_amount: apiBill.total,
-      total_tax: apiBill.total_tax || 0,
+      total_amount: Number(apiBill.total_amount || apiBill.total || 0),
+      total_tax: Number(apiBill.total_tax || 0),
       payment_mode: apiBill.payment_mode,
       customer_name: apiBill.customer_name,
       customer_phone: apiBill.customer_phone,
       items: apiBill.items,
-      cgst_amount: apiBill.cgst,
-      sgst_amount: apiBill.sgst,
-      igst_amount: apiBill.igst,
-      subtotal: apiBill.subtotal,
+      cgst_amount: Number(apiBill.cgst_amount || apiBill.cgst || 0),
+      sgst_amount: Number(apiBill.sgst_amount || apiBill.sgst || 0),
+      igst_amount: Number(apiBill.igst_amount || apiBill.igst || 0),
+      subtotal: Number(apiBill.subtotal || 0),
       created_at: apiBill.timestamp,
       timestamp: apiBill.timestamp,
     };
@@ -95,7 +94,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
   const calculateDateRange = () => {
     let end = new Date();
     end.setHours(23, 59, 59, 999);
-    
+
     let start = new Date();
     start.setHours(0, 0, 0, 0);
 
@@ -108,25 +107,25 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
         start.setDate(start.getDate() - value);
         start.setHours(0, 0, 0, 0);
         break;
-      
+
       case 'weeks':
         start = new Date();
         start.setDate(start.getDate() - (value * 7));
         start.setHours(0, 0, 0, 0);
         break;
-      
+
       case 'months':
         start = new Date();
         start.setMonth(start.getMonth() - value);
         start.setHours(0, 0, 0, 0);
         break;
-      
+
       case 'years':
         start = new Date();
         start.setFullYear(start.getFullYear() - value);
         start.setHours(0, 0, 0, 0);
         break;
-      
+
       case 'calendar':
         start = new Date(customStartDate);
         start.setHours(0, 0, 0, 0);
@@ -151,19 +150,19 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     const startingDayOfWeek = firstDay.getDay();
-    
+
     const days: (Date | null)[] = [];
-    
+
     // Add empty slots for days before the first day of month
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    
+
     // Add all days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(new Date(year, month, day));
     }
-    
+
     return days;
   };
 
@@ -188,7 +187,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
   const renderCalendar = () => {
     const days = generateCalendarDays(calendarYear, calendarMonth);
     const monthName = new Date(calendarYear, calendarMonth).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
-    
+
     return (
       <Modal
         visible={showCalendar}
@@ -206,7 +205,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
               <Text style={styles.calendarTitle}>
                 {selectingStartDate ? 'Select Start Date' : 'Select End Date'}
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   setShowCalendar(false);
                   setSelectingStartDate(true);
@@ -218,7 +217,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
 
             {/* Month Navigation */}
             <View style={styles.monthNavigation}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   if (calendarMonth === 0) {
                     setCalendarMonth(11);
@@ -232,7 +231,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
                 <Text style={styles.monthButtonText}>←</Text>
               </TouchableOpacity>
               <Text style={styles.monthName}>{monthName}</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => {
                   if (calendarMonth === 11) {
                     setCalendarMonth(0);
@@ -261,16 +260,16 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
                   if (!date) {
                     return <View key={`empty-${index}`} style={styles.emptyDay} />;
                   }
-                  
-                  const isSelected = 
+
+                  const isSelected =
                     (date.toDateString() === customStartDate.toDateString()) ||
                     (date.toDateString() === customEndDate.toDateString());
-                  
-                  const isInRange = 
+
+                  const isInRange =
                     date >= customStartDate && date <= customEndDate;
-                  
+
                   const isToday = date.toDateString() === new Date().toDateString();
-                  
+
                   return (
                     <TouchableOpacity
                       key={index}
@@ -307,7 +306,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
             </View>
 
             {/* Apply Button */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.applyButton}
               onPress={() => {
                 setShowCalendar(false);
@@ -343,81 +342,24 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
           }
 
           console.log('📥 Downloading bills from API with params:', params);
-          const response = await API.bills.download(params);
+          const response = await API.backup.download(params);
           console.log('✅ Bills downloaded from API:', response.bills?.length || 0);
-          
+
           // Convert API bills to local format
           const localBills = (response.bills || []).map(convertAPIBillToLocal);
           setBills(localBills);
         } catch (apiError: any) {
-          console.error('❌ API failed, loading from local storage:', apiError.message);
-          
-          // Show user-friendly error message
-          if (apiError.response?.status === 500) {
-            Alert.alert(
-              'Server Error',
-              'Unable to fetch bills from server. Loading from local storage instead.\n\nPlease contact backend team to fix the /backup/sync endpoint.',
-              [{ text: 'OK' }]
-            );
-          }
-          
-          loadBillsFromLocal(dateRange);
+          console.error('❌ API failed:', apiError.message);
+          Alert.alert('Error', 'Failed to fetch bills from server.');
         }
       } else {
-        console.log('📴 Offline - loading bills from local storage');
-        loadBillsFromLocal(dateRange);
+        Alert.alert('Offline', 'You are currently offline. Please check your internet connection.');
       }
     } catch (error) {
       console.error('Failed to load bills:', error);
       Alert.alert('Error', 'Failed to load bill history');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadBillsFromLocal = async (dateRange: { start: Date; end: Date }) => {
-    try {
-      const allBills = await getBills();
-      const filtered = allBills.filter((bill: any) => {
-        const billDate = new Date(bill.bill_date || bill.created_at || bill.timestamp);
-        const matchesDate = billDate >= dateRange.start && billDate <= dateRange.end;
-        
-        if (filterType === 'gst') {
-          return matchesDate && bill.billing_mode === 'gst';
-        } else if (filterType === 'non_gst') {
-          return matchesDate && bill.billing_mode === 'non_gst';
-        } else if (filterType === 'all') {
-          return matchesDate;
-        }
-        
-        return matchesDate;
-      });
-
-      // Convert local bills to LocalBill format
-      const localBills: LocalBill[] = filtered.map((bill: any) => ({
-        id: bill.id,
-        invoice_number: bill.invoice_number,
-        bill_number: bill.bill_number,
-        billing_mode: bill.billing_mode,
-        bill_date: bill.bill_date,
-        total_amount: bill.total_amount || bill.total || 0,
-        total_tax: bill.total_tax || 0,
-        payment_mode: bill.payment_mode,
-        customer_name: bill.customer_name,
-        customer_phone: bill.customer_phone,
-        items: bill.items, // Can be string or array
-        cgst_amount: bill.cgst_amount || bill.cgst,
-        sgst_amount: bill.sgst_amount || bill.sgst,
-        igst_amount: bill.igst_amount || bill.igst,
-        subtotal: bill.subtotal,
-        created_at: bill.created_at || bill.timestamp,
-        timestamp: bill.timestamp || bill.created_at,
-      }));
-
-      setBills(localBills);
-    } catch (error) {
-      console.error('Failed to load local bills:', error);
-      setBills([]);
     }
   };
 
@@ -464,7 +406,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
 
     // Group by date
     const grouped: { [key: string]: LocalBill[] } = {};
-    
+
     sortedBills.forEach(bill => {
       const billDate = new Date(bill.bill_date || bill.created_at || bill.timestamp || 0);
       const dateKey = billDate.toLocaleDateString('en-IN', {
@@ -472,7 +414,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
         month: 'short',
         year: 'numeric',
       }); // e.g., "26 Jan 2026"
-      
+
       if (!grouped[dateKey]) {
         grouped[dateKey] = [];
       }
@@ -499,7 +441,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
             <Text style={styles.billDate}>{formatDate(bill.bill_date || bill.created_at || bill.timestamp || '')}</Text>
           </View>
           <View style={styles.billHeaderRight}>
-            <Text style={styles.billAmount}>₹{bill.total_amount.toFixed(2)}</Text>
+            <Text style={styles.billAmount}>₹{(bill.total_amount || 0).toFixed(2)}</Text>
             <View style={[
               styles.badge,
               bill.billing_mode === 'gst' ? styles.gstBadge : styles.nonGstBadge
@@ -610,7 +552,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
                     <Text style={styles.itemName}>{item.name}</Text>
                     <Text style={styles.itemQuantity}>Qty: {item.quantity}</Text>
                   </View>
-                  <Text style={styles.itemPrice}>₹{item.subtotal?.toFixed(2) || '0.00'}</Text>
+                  <Text style={styles.itemPrice}>₹{Number(item.subtotal || 0).toFixed(2)}</Text>
                 </View>
               ))}
             </View>
@@ -620,39 +562,39 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
               <Text style={styles.sectionTitle}>Amount Breakdown</Text>
               <View style={styles.amountRow}>
                 <Text style={styles.amountLabel}>Subtotal:</Text>
-                <Text style={styles.amountValue}>₹{selectedBill.subtotal.toFixed(2)}</Text>
+                <Text style={styles.amountValue}>₹{Number(selectedBill.subtotal || 0).toFixed(2)}</Text>
               </View>
-              
+
               {selectedBill.billing_mode === 'gst' && (
                 <>
-                  {selectedBill.cgst_amount && selectedBill.cgst_amount > 0 && (
+                  {(selectedBill.cgst_amount || 0) > 0 && (
                     <View style={styles.amountRow}>
                       <Text style={styles.amountLabel}>CGST:</Text>
-                      <Text style={styles.amountValue}>₹{selectedBill.cgst_amount.toFixed(2)}</Text>
+                      <Text style={styles.amountValue}>₹{Number(selectedBill.cgst_amount || 0).toFixed(2)}</Text>
                     </View>
                   )}
-                  {selectedBill.sgst_amount && selectedBill.sgst_amount > 0 && (
+                  {(selectedBill.sgst_amount || 0) > 0 && (
                     <View style={styles.amountRow}>
                       <Text style={styles.amountLabel}>SGST:</Text>
-                      <Text style={styles.amountValue}>₹{selectedBill.sgst_amount.toFixed(2)}</Text>
+                      <Text style={styles.amountValue}>₹{Number(selectedBill.sgst_amount || 0).toFixed(2)}</Text>
                     </View>
                   )}
-                  {selectedBill.igst_amount && selectedBill.igst_amount > 0 && (
+                  {(selectedBill.igst_amount || 0) > 0 && (
                     <View style={styles.amountRow}>
                       <Text style={styles.amountLabel}>IGST:</Text>
-                      <Text style={styles.amountValue}>₹{selectedBill.igst_amount.toFixed(2)}</Text>
+                      <Text style={styles.amountValue}>₹{Number(selectedBill.igst_amount || 0).toFixed(2)}</Text>
                     </View>
                   )}
                   <View style={styles.amountRow}>
                     <Text style={styles.amountLabel}>Total Tax:</Text>
-                    <Text style={styles.amountValue}>₹{selectedBill.total_tax?.toFixed(2) || '0.00'}</Text>
+                    <Text style={styles.amountValue}>₹{Number(selectedBill.total_tax || 0).toFixed(2)}</Text>
                   </View>
                 </>
               )}
 
               <View style={[styles.amountRow, styles.totalRow]}>
                 <Text style={styles.totalLabel}>Total Amount:</Text>
-                <Text style={styles.totalValue}>₹{selectedBill.total_amount.toFixed(2)}</Text>
+                <Text style={styles.totalValue}>₹{Number(selectedBill.total_amount || 0).toFixed(2)}</Text>
               </View>
             </View>
           </ScrollView>
@@ -689,8 +631,8 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
 
       {/* Date Filter Tabs */}
       <View style={styles.filterContainer}>
-        <ScrollView 
-          horizontal 
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScrollContent}
         >
@@ -782,7 +724,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
 
       {/* Calendar Selected Range Display */}
       {dateFilterType === 'calendar' && (
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.calendarRangeDisplay}
           onPress={() => setShowCalendar(true)}
         >
@@ -801,7 +743,7 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
         </Text>
         <Text style={styles.summaryText}>
           Total Amount: <Text style={styles.summaryValue}>
-            ₹{bills.reduce((sum, bill) => sum + bill.total_amount, 0).toFixed(2)}
+            ₹{bills.reduce((sum, bill) => sum + (bill.total_amount || 0), 0).toFixed(2)}
           </Text>
         </Text>
       </View>
@@ -812,9 +754,9 @@ const BillHistoryScreen: React.FC<BillHistoryScreenProps> = ({ navigation, route
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No bills found</Text>
             <Text style={styles.emptySubtext}>
-              {filterType === 'gst' ? 'No GST bills' : 
-               filterType === 'non_gst' ? 'No Non-GST bills' : 
-               'No bills'} found for the selected period
+              {filterType === 'gst' ? 'No GST bills' :
+                filterType === 'non_gst' ? 'No Non-GST bills' :
+                  'No bills'} found for the selected period
             </Text>
           </View>
         ) : (

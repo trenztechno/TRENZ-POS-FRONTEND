@@ -16,7 +16,8 @@ import TotalBillsIcon from '../assets/icons/TotalBills.svg';
 import AvgIcon from '../assets/icons/AvgIcon.svg';
 import TotalItemsIcon from '../assets/icons/TotalItems.svg';
 import { RootStackParamList } from '../types/business.types';
-import { getBills, getItems, getCategories } from '../services/storage';
+import API from '../services/api';
+// Local storage import removed
 
 type BillSummaryScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'BillSummary'>;
@@ -75,26 +76,30 @@ const BillSummaryScreen: React.FC<BillSummaryScreenProps> = ({ navigation, route
   const loadSummaryData = async () => {
     try {
       const { dateRange, customDays } = route.params || {};
-      
-      // Calculate date range
-      const range = calculateDateRange(dateRange, customDays);
-      
-      // Load bills from database
-      const allBills = await getBills();
-      
-      // Filter bills by date range
-      const filteredBills = allBills.filter(bill => {
-        const billDate = new Date(bill.created_at);
-        return billDate >= range.start && billDate <= range.end;
-      });
 
-      // Load items and categories for breakdown
-      const allItems = await getItems();
-      const allCategories = await getCategories();
+      // Calculate date range
+      const range = calculateDateRange(dateRange, customDays as string | undefined);
+      const startDateStr = range.start.toISOString().split('T')[0];
+      const endDateStr = range.end.toISOString().split('T')[0];
+
+      // Fetch data from API in parallel
+      const [billsResponse, itemsResponse, categoriesResponse] = await Promise.all([
+        API.backup.download({
+          start_date: startDateStr,
+          end_date: endDateStr,
+          limit: 1000 // Ensure we get enough bills
+        }),
+        API.items.getAll({ search: '' }), // Get all items for category mapping
+        API.categories.getAll() // Get all categories
+      ]);
+
+      const bills = billsResponse.bills || [];
+      const items = itemsResponse || [];
+      const categories = categoriesResponse || [];
 
       // Calculate summary
-      const summary = calculateSummary(filteredBills, allItems, allCategories, range);
-      
+      const summary = calculateSummary(bills, items, categories, range);
+
       setSummaryData(summary);
     } catch (error) {
       console.error('Failed to load summary data:', error);
@@ -120,7 +125,7 @@ const BillSummaryScreen: React.FC<BillSummaryScreenProps> = ({ navigation, route
   const calculateDateRange = (dateRange: string | undefined, customDays: string | undefined) => {
     const end = new Date();
     end.setHours(23, 59, 59, 999);
-    
+
     let start = new Date();
     start.setHours(0, 0, 0, 0);
 
@@ -157,13 +162,13 @@ const BillSummaryScreen: React.FC<BillSummaryScreenProps> = ({ navigation, route
   ): SummaryData => {
     // Total sales
     const totalSales = bills.reduce((sum, bill) => sum + (bill.total_amount || 0), 0);
-    
+
     // Total bills
     const totalBills = bills.length;
-    
+
     // Average bill value
     const avgBillValue = totalBills > 0 ? totalSales / totalBills : 0;
-    
+
     // Total items (sum of quantities from all bills)
     let totalItemsCount = 0;
     const categoryTotals: { [key: string]: number } = {};
@@ -172,10 +177,10 @@ const BillSummaryScreen: React.FC<BillSummaryScreenProps> = ({ navigation, route
     bills.forEach(bill => {
       try {
         const billItems = JSON.parse(bill.items || '[]');
-        
+
         billItems.forEach((item: any) => {
           totalItemsCount += item.quantity || 0;
-          
+
           // Track category totals
           const itemData = items.find(i => i.id === item.id);
           if (itemData && itemData.category_ids && itemData.category_ids.length > 0) {
@@ -245,11 +250,11 @@ const BillSummaryScreen: React.FC<BillSummaryScreenProps> = ({ navigation, route
 
   const getDateRangeText = () => {
     const { dateRange, customDays } = route.params || {};
-    
+
     if (dateRange === 'custom' && customDays) {
       return `Last ${customDays} Days`;
     }
-    
+
     switch (dateRange) {
       case 'today':
         return 'Today';
@@ -388,7 +393,7 @@ const BillSummaryScreen: React.FC<BillSummaryScreenProps> = ({ navigation, route
         {summaryData.categories.length > 0 ? (
           <View style={styles.categoryCard}>
             <Text style={styles.cardTitle}>Category Breakdown</Text>
-            
+
             <View style={styles.categoriesList}>
               {summaryData.categories.map((category, index) => (
                 <View key={index} style={styles.categoryItem}>
@@ -421,7 +426,7 @@ const BillSummaryScreen: React.FC<BillSummaryScreenProps> = ({ navigation, route
         {/* Additional Details */}
         <View style={styles.detailsCard}>
           <Text style={styles.cardTitle}>Additional Details</Text>
-          
+
           <View style={styles.detailsList}>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Peak Hour:</Text>

@@ -11,7 +11,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import BillingIcon from '../assets/icons/BillingIcon.svg';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings } from '../services/storage';
+import { getUserData } from '../services/auth';
 
 type ModeSelectionScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ModeSelection'>;
@@ -42,10 +42,10 @@ const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({
   const loadBusinessInfo = async () => {
     try {
       setIsLoading(true);
-      const settings = await getBusinessSettings();
-      
-      if (settings && settings.business_name) {
-        setBusinessName(settings.business_name);
+      const userData = await getUserData();
+
+      if (userData && userData.business_name) {
+        setBusinessName(userData.business_name);
       }
     } catch (error) {
       console.error('Failed to load business info:', error);

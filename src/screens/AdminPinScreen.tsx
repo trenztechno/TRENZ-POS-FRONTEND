@@ -1,10 +1,9 @@
 /**
  * AdminPinScreen.tsx
  * 
- * This screen handles LOCAL admin PIN verification for accessing admin features.
- * This is NOT related to API authentication - it's a local security layer.
+ * This screen handles admin PIN verification for accessing admin features.
+ * The PIN is verified via API.
  * 
- * The admin PIN is stored locally in business settings and verified client-side.
  * This is separate from the vendor account login which uses the API.
  */
 import React, { useState, useEffect, useRef } from 'react';
@@ -22,8 +21,7 @@ import {
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LockIcon from '../assets/icons/LockIcon.svg';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings } from '../services/storage';
-import CryptoJS from 'crypto-js';
+import API from '../services/api';
 
 type AdminPinScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'AdminPin'>;
@@ -55,14 +53,14 @@ const AdminPinScreen: React.FC<AdminPinScreenProps> = ({ navigation }) => {
 
   const checkPinExists = async () => {
     try {
-      const settings = await getBusinessSettings();
-      
+      const status = await API.auth.securityPin.status();
+
       // If no PIN is set, navigate to SetAdminPin
-      if (!settings?.admin_pin) {
+      if (!status.has_pin) {
         navigation.replace('SetAdminPin');
         return;
       }
-      
+
       setIsLoading(false);
     } catch (error) {
       console.error('Failed to check PIN:', error);
@@ -71,20 +69,10 @@ const AdminPinScreen: React.FC<AdminPinScreenProps> = ({ navigation }) => {
     }
   };
 
-  const hashPin = (pinToHash: string): string => {
-    return CryptoJS.SHA256(pinToHash).toString();
-  };
-
   const verifyPin = async (enteredPin: string): Promise<boolean> => {
     try {
-      const settings = await getBusinessSettings();
-      
-      if (!settings?.admin_pin) {
-        return false;
-      }
-      
-      const hashedEnteredPin = hashPin(enteredPin);
-      return hashedEnteredPin === settings.admin_pin;
+      const result = await API.auth.securityPin.verify(enteredPin);
+      return result.verified;
     } catch (error) {
       console.error('Failed to verify PIN:', error);
       return false;
@@ -92,7 +80,7 @@ const AdminPinScreen: React.FC<AdminPinScreenProps> = ({ navigation }) => {
   };
 
   const handleVerify = async () => {
-    if (pin.length !== 4) {
+    if (pin.length < 4) {
       setError(true);
       shakeAnimation();
       return;
@@ -102,7 +90,7 @@ const AdminPinScreen: React.FC<AdminPinScreenProps> = ({ navigation }) => {
 
     try {
       const isValid = await verifyPin(pin);
-      
+
       if (isValid) {
         navigation.replace('AdminDashboard');
       } else {

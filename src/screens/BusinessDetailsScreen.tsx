@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+// Local storage import removed
 import { getUserData, getVendorProfile, updateVendorProfile } from '../services/auth';
 
 type BusinessDetailsScreenProps = {
@@ -74,7 +74,7 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
     try {
       // Try to get vendor profile first (most up-to-date)
       const vendorProfile = await getVendorProfile();
-      
+
       if (vendorProfile) {
         setBusinessData({
           shopName: vendorProfile.business_name || '',
@@ -85,17 +85,16 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
           emailId: vendorProfile.email || '',
         });
       } else {
-        // Fallback to business settings or user data
-        const settings = await getBusinessSettings();
+        // Fallback to user data only
         const userData = await getUserData();
-        
+
         setBusinessData({
-          shopName: settings?.business_name || userData?.business_name || '',
-          address: settings?.business_address || '',
-          gstin: settings?.business_gst || userData?.gst_no || '',
-          fssaiNo: settings?.business_fssai || userData?.fssai_license || '',
-          phoneNumber: settings?.business_phone || '',
-          emailId: settings?.business_email || '',
+          shopName: userData?.business_name || '',
+          address: userData?.address || '',
+          gstin: userData?.gst_no || '',
+          fssaiNo: userData?.fssai_license || '',
+          phoneNumber: userData?.phone || '',
+          emailId: '',
         });
       }
     } catch (error) {
@@ -174,16 +173,7 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
         email: businessData.emailId.trim(),
       });
 
-      // Also save to local business settings for offline access
-      // We save GSTIN locally so it appears on printed bills even if API doesn't update it
-      await saveBusinessSettings({
-        business_name: businessData.shopName.trim(),
-        business_address: businessData.address.trim(),
-        business_gst: businessData.gstin.trim(),
-        business_fssai: businessData.fssaiNo.trim(),
-        business_phone: businessData.phoneNumber.trim(),
-        business_email: businessData.emailId.trim(),
-      }as any);
+      // Local storage sync removed for online-only mode
 
       Alert.alert(
         'Success',

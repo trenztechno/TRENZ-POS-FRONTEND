@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,23 +9,23 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
+  Modal,
 } from 'react-native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
-import type {RootStackParamList, MenuItem, CartItem} from '../types/business.types';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList, MenuItem, CartItem } from '../types/business.types';
 import Icon from 'react-native-vector-icons/Ionicons';
-import { getItems, getCategories, getBusinessSettings } from '../services/storage';
-import CryptoJS from 'crypto-js';
+import API from '../services/api';
 
 type BillingScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Billing'>;
 };
 
-const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
+const BillingScreen: React.FC<BillingScreenProps> = ({ navigation }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Items');
   const [cart, setCart] = useState<CartItem[]>([]);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-  const [categories, setCategories] = useState<Array<{id: string; name: string}>>([]);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [outOfStockItems, setOutOfStockItems] = useState<Set<string>>(new Set());
 
@@ -50,53 +50,28 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
 
   const loadData = async () => {
     try {
-      // ONLINE-FIRST: Try to load from API first
-      console.log('🌐 ONLINE-FIRST: Loading billing data...');
-      
-      let categoriesData: any[] = [];
-      let itemsData: any[] = [];
-      
-      try {
-        // Check if online
-        const { getNetworkStatus } = await import('../services/sync');
-        const isOnline = await getNetworkStatus();
-        
-        if (isOnline) {
-          console.log('📡 Loading from API (online-first)...');
-          const API = await import('../services/api');
-          
-          // Load from API
-          const [apiCategories, apiItems] = await Promise.all([
-            API.default.categories.getAll(),
-            API.default.items.getAll({ is_active: true }),
-          ]);
-          
-          categoriesData = apiCategories;
-          itemsData = apiItems;
-          
-          console.log('✅ Loaded from API:', {
-            categories: categoriesData.length,
-            items: itemsData.length,
-          });
-        } else {
-          throw new Error('Offline - loading from local storage');
-        }
-      } catch (apiError) {
-        console.warn('⚠️ API failed, loading from local storage:', apiError);
-        // Fallback to local storage
-        categoriesData = await getCategories();
-        itemsData = await getItems();
-      }
-      
-      setCategories(categoriesData);
-      
+      console.log('🌐 Loading billing data from API (online-only)...');
+
+      // Load from API only
+      const [apiCategories, apiItems] = await Promise.all([
+        API.categories.getAll(),
+        API.items.getAll({ is_active: true }),
+      ]);
+
+      setCategories(apiCategories);
+
+      console.log('✅ Loaded from API:', {
+        categories: apiCategories.length,
+        items: apiItems.length,
+      });
+
       // Map items with ALL fields including GST-related fields
-      const mappedItems: MenuItem[] = itemsData.map(item => {
+      const mappedItems: MenuItem[] = apiItems.map(item => {
         // Get category name from first category (for display)
         const categoryId = item.category_ids?.[0] || '';
-        const category = categoriesData.find(cat => cat.id === categoryId);
-        
-        // --- FIX: Parse strings to numbers to prevent .toFixed crashes ---
+        const category = apiCategories.find(cat => cat.id === categoryId);
+
+        // Parse strings to numbers to prevent .toFixed crashes
         const parsedPrice = parseFloat(String(item.price || 0));
         const parsedMrp = item.mrp_price ? parseFloat(String(item.mrp_price)) : parsedPrice;
         const parsedGst = item.gst_percentage ? parseFloat(String(item.gst_percentage)) : 0;
@@ -105,17 +80,16 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
         return {
           id: item.id,
           name: item.name,
-          price: parsedPrice, // Safe number
-          mrp_price: parsedMrp, // Safe number
+          price: parsedPrice,
+          mrp_price: parsedMrp,
           price_type: (item.price_type as 'exclusive' | 'inclusive') || 'exclusive',
-          gst_percentage: parsedGst, // Safe number
+          gst_percentage: parsedGst,
           veg_nonveg: item.veg_nonveg as 'veg' | 'nonveg' | undefined,
-          additional_discount: parsedDiscount, // Safe number
+          additional_discount: parsedDiscount,
           category: category?.name || 'Uncategorized',
           category_ids: item.category_ids || [categoryId],
           image: item.image_url,
           image_url: item.image_url,
-          image_path: item.image_path,
           local_image_path: item.local_image_path,
           description: item.description,
           stock_quantity: item.stock_quantity,
@@ -129,6 +103,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
       setMenuItems(mappedItems);
     } catch (error) {
       console.error('Failed to load data:', error);
+      Alert.alert('Error', 'Failed to load billing data. Please check your connection and try again.');
     } finally {
       setIsLoading(false);
     }
@@ -214,12 +189,12 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
       setCart(
         cart.map(cartItem =>
           cartItem.id === item.id
-            ? {...cartItem, quantity: cartItem.quantity + 1}
+            ? { ...cartItem, quantity: cartItem.quantity + 1 }
             : cartItem
         )
       );
     } else {
-      setCart([...cart, {...item, quantity: 1}]);
+      setCart([...cart, { ...item, quantity: 1 }]);
     }
   };
 
@@ -229,7 +204,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
       setCart(
         cart.map(cartItem =>
           cartItem.id === itemId
-            ? {...cartItem, quantity: cartItem.quantity - 1}
+            ? { ...cartItem, quantity: cartItem.quantity - 1 }
             : cartItem
         )
       );
@@ -252,7 +227,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
   };
 
   const handleCheckout = () => {
-    navigation.navigate('Checkout', {cart});
+    navigation.navigate('Checkout', { cart });
   };
 
   const handleBack = () => {
@@ -271,14 +246,20 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
     setOutOfStockItems(newOutOfStock);
   };
 
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [itemToEdit, setItemToEdit] = useState<MenuItem | null>(null);
+
   const handleEditItem = async (item: MenuItem) => {
     try {
-      // Fetch admin PIN from business settings
-      const settings = await getBusinessSettings();
-      const storedHashedPin = settings?.admin_pin;
+      console.log('🔧 Edit button clicked for item:', item.name);
 
-      // Check if admin PIN is set
-      if (!storedHashedPin) {
+      // Check if admin PIN is set via API
+      const status = await API.auth.securityPin.status();
+      console.log('📌 PIN status:', status);
+
+      if (!status.has_pin) {
+        console.log('⚠️ No PIN set, showing alert');
         Alert.alert(
           'Admin PIN Not Set',
           'Please set an admin PIN in Admin Dashboard first before editing items.',
@@ -296,39 +277,51 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
         return;
       }
 
-      // Prompt for admin PIN
-      Alert.prompt(
-        'Admin PIN Required',
-        'Enter admin PIN to edit this item',
-        [
-          {
-            text: 'Cancel',
-            style: 'cancel',
-          },
-          {
-            text: 'OK',
-            onPress: (enteredPin?: string) => {
-              if (!enteredPin || enteredPin.trim() === '') {
-                Alert.alert('Error', 'Please enter a PIN');
-                return;
-              }
-              
-              // Hash the entered PIN and compare with stored hash
-              const hashedEnteredPin = CryptoJS.SHA256(enteredPin).toString();
-              
-              if (hashedEnteredPin === storedHashedPin) {
-                navigation.navigate('EditItem', { item });
-              } else {
-                Alert.alert('Error', 'Incorrect admin PIN');
-              }
-            },
-          },
-        ],
-        'secure-text'
-      );
+      console.log('✅ PIN is set, showing PIN input modal');
+      // Store item and show PIN modal
+      setItemToEdit(item);
+      setPinInput('');
+      setShowPinModal(true);
     } catch (error) {
-      console.error('Failed to verify admin PIN:', error);
+      console.error('❌ Failed to check admin PIN status:', error);
       Alert.alert('Error', 'Failed to verify admin PIN. Please try again.');
+    }
+  };
+
+  const handlePinSubmit = async () => {
+    if (!pinInput || pinInput.trim() === '') {
+      Alert.alert('Error', 'Please enter a PIN');
+      return;
+    }
+
+    if (!itemToEdit) {
+      Alert.alert('Error', 'No item selected');
+      setShowPinModal(false);
+      return;
+    }
+
+    try {
+      console.log('🔑 Verifying PIN...');
+      // Verify PIN via API
+      const result = await API.auth.securityPin.verify(pinInput);
+      console.log('🔐 PIN verification result:', result);
+
+      if (result.verified) {
+        console.log('✅ PIN verified, navigating to EditItem screen');
+        console.log('📦 Item data being passed:', itemToEdit);
+        setShowPinModal(false);
+        setPinInput('');
+        navigation.navigate('EditItem', { item: itemToEdit });
+        setItemToEdit(null);
+      } else {
+        console.log('❌ Incorrect PIN');
+        Alert.alert('Error', 'Incorrect admin PIN');
+        setPinInput('');
+      }
+    } catch (error) {
+      console.error('❌ PIN verification failed:', error);
+      Alert.alert('Error', 'Failed to verify PIN. Please try again.');
+      setPinInput('');
     }
   };
 
@@ -341,10 +334,10 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
   // Filter items based on search and category
   const getFilteredItems = () => {
     return menuItems
-      .filter(item => 
+      .filter(item =>
         selectedCategory === 'All Items' || item.category === selectedCategory
       )
-      .filter(item => 
+      .filter(item =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
       );
   };
@@ -368,7 +361,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
           styles.header,
           {
             opacity: headerOpacity,
-            transform: [{translateY: headerTranslateY}],
+            transform: [{ translateY: headerTranslateY }],
           },
         ]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -384,7 +377,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
             styles.searchContainer,
             {
               opacity: searchOpacity,
-              transform: [{translateY: searchTranslateY}],
+              transform: [{ translateY: searchTranslateY }],
             },
           ]}>
           <View style={styles.searchInputContainer}>
@@ -405,11 +398,11 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
             styles.categoryContainer,
             {
               opacity: filtersOpacity,
-              transform: [{translateX: filtersTranslateX}],
+              transform: [{ translateX: filtersTranslateX }],
             },
           ]}>
-          <ScrollView 
-            horizontal 
+          <ScrollView
+            horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.categoryScrollContent}>
             {categoryFilters.map(category => (
@@ -436,7 +429,7 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
         <Animated.View
           style={[
             styles.allItemsContainer,
-            {opacity: contentOpacity, transform: [{translateY: contentTranslateY}]},
+            { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] },
           ]}>
           <Text style={styles.sectionTitle}>Food Items</Text>
           {filteredItems.length === 0 ? (
@@ -446,21 +439,40 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
             </View>
           ) : (
             <View style={styles.verticalItemsList}>
-              {filteredItems.map(item => {
+              {filteredItems.map((item, index) => {
                 const quantity = getItemQuantity(item.id);
                 const isOutOfStock = outOfStockItems.has(item.id);
                 return (
-                  <View 
-                    key={item.id} 
-                    style={[styles.verticalItemCard, isOutOfStock && styles.outOfStockCard]}>
+                  <Animated.View
+                    key={item.id}
+                    style={[
+                      styles.verticalItemCard,
+                      isOutOfStock && styles.outOfStockCard,
+                      {
+                        opacity: contentOpacity,
+                      },
+                    ]}>
+
+                    {/* Stock Toggle - Top Right Overlay */}
+                    <TouchableOpacity
+                      style={styles.stockToggleButton}
+                      onPress={() => handleMarkOutOfStock(item.id)}>
+                      <Icon
+                        name={isOutOfStock ? "close-circle" : "checkmark-circle"}
+                        size={28}
+                        color={isOutOfStock ? "#EF5350" : "#4CAF50"}
+                      />
+                    </TouchableOpacity>
+
                     {/* Item Info Section */}
                     <View style={styles.itemInfoSection}>
                       <View style={styles.itemImageSmall}>
-                        <Icon name="restaurant-outline" size={28} color={isOutOfStock ? "#999999" : "#C62828"} />
+                        <Icon name="restaurant-outline" size={32} color={isOutOfStock ? "#CCCCCC" : "#C62828"} />
                       </View>
+
                       <View style={styles.itemDetails}>
                         <View style={styles.itemNameRow}>
-                          <Text style={[styles.verticalItemName, isOutOfStock && styles.outOfStockText]} numberOfLines={1}>
+                          <Text style={[styles.verticalItemName, isOutOfStock && styles.outOfStockText]} numberOfLines={2}>
                             {item.name}
                           </Text>
                           {item.veg_nonveg && (
@@ -478,34 +490,20 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
 
                     {/* Action Buttons Section */}
                     <View style={styles.itemActionsSection}>
-                      {/* Out of Stock Button */}
-                      <TouchableOpacity
-                        style={[styles.stockButton, isOutOfStock && styles.stockButtonActive]}
-                        onPress={() => handleMarkOutOfStock(item.id)}>
-                        <Icon 
-                          name={isOutOfStock ? "close-circle" : "checkmark-circle-outline"} 
-                          size={18} 
-                          color={isOutOfStock ? "#FFFFFF" : "#666666"} 
-                        />
-                        <Text style={[styles.stockButtonText, isOutOfStock && styles.stockButtonTextActive]}>
-                          {isOutOfStock ? 'Out of Stock' : 'In Stock'}
-                        </Text>
-                      </TouchableOpacity>
-
                       {/* Edit Button */}
                       <TouchableOpacity
                         style={styles.editButton}
                         onPress={() => handleEditItem(item)}>
-                        <Icon name="create-outline" size={18} color="#C62828" />
+                        <Icon name="create-outline" size={20} color="#C62828" />
                       </TouchableOpacity>
 
-                      {/* Add to Cart */}
-                      {!isOutOfStock && (
+                      {/* Add / Quantity Control */}
+                      {!isOutOfStock ? (
                         quantity === 0 ? (
                           <TouchableOpacity
                             style={styles.addButton}
                             onPress={() => addToCart(item)}>
-                            <Text style={styles.addButtonText}>Add</Text>
+                            <Text style={styles.addButtonText}>ADD</Text>
                           </TouchableOpacity>
                         ) : (
                           <View style={styles.quantityControl}>
@@ -522,15 +520,66 @@ const BillingScreen: React.FC<BillingScreenProps> = ({navigation}) => {
                             </TouchableOpacity>
                           </View>
                         )
+                      ) : (
+                        <View style={[styles.addButton, { backgroundColor: '#F5F5F5' }]}>
+                          <Text style={[styles.addButtonText, { color: '#AAAAAA' }]}>UNAVAILABLE</Text>
+                        </View>
                       )}
                     </View>
-                  </View>
+                  </Animated.View>
                 );
               })}
             </View>
           )}
         </Animated.View>
       </ScrollView>
+
+      {/* PIN Input Modal */}
+      <Modal
+        visible={showPinModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => {
+          setShowPinModal(false);
+          setPinInput('');
+        }}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Admin PIN Required</Text>
+            <Text style={styles.modalSubtitle}>Enter admin PIN to edit this item</Text>
+
+            <TextInput
+              style={styles.pinInput}
+              value={pinInput}
+              onChangeText={setPinInput}
+              placeholder="Enter PIN"
+              placeholderTextColor="#999"
+              keyboardType="numeric"
+              secureTextEntry
+              autoFocus
+              maxLength={6}
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setShowPinModal(false);
+                  setPinInput('');
+                  setItemToEdit(null);
+                }}>
+                <Text style={styles.modalButtonTextCancel}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSubmit]}
+                onPress={handlePinSubmit}>
+                <Text style={styles.modalButtonTextSubmit}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Cart Footer */}
       {cart.length > 0 && (
@@ -658,58 +707,82 @@ const styles = StyleSheet.create({
   },
   allItemsContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 120,
+    paddingBottom: 120, // Space for checkout footer
   },
   verticalItemsList: {
-    gap: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
   },
   verticalItemCard: {
+    width: '48%', // Flexible enough for 2 columns with gap
+    marginBottom: 16,
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    borderWidth: 0.6,
-    borderColor: '#E0E0E0',
-    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EAEAEA',
+    padding: 12,
+    // Shadow for depth
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    position: 'relative', // For absolute positioning stock button
   },
   outOfStockCard: {
-    backgroundColor: '#F5F5F5',
-    opacity: 0.7,
+    backgroundColor: '#FAFAFA',
+    opacity: 0.85,
+    borderColor: '#EEEEEE',
   },
+
+  // Stock Toggle (Top Right Overlay)
+  stockToggleButton: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    zIndex: 10,
+    padding: 4,
+  },
+
   itemInfoSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginTop: 12, // Space from top for stock toggle
+    alignItems: 'center', // Center content vertically
     marginBottom: 12,
   },
   itemImageSmall: {
-    width: 60,
-    height: 60,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
+    width: 64,
+    height: 64,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginBottom: 8, // Stack image top
   },
   itemDetails: {
-    flex: 1,
+    width: '100%',
+    alignItems: 'flex-start',
   },
   itemNameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
+    width: '100%',
     marginBottom: 4,
   },
   verticalItemName: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
     color: '#333333',
-    letterSpacing: -0.44,
     flex: 1,
+    marginRight: 4,
   },
   vegBadge: {
-    width: 18,
-    height: 18,
+    width: 16,
+    height: 16,
     borderWidth: 1.5,
     borderColor: '#4CAF50',
-    borderRadius: 3,
+    borderRadius: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -726,101 +799,85 @@ const styles = StyleSheet.create({
     backgroundColor: '#D32F2F',
   },
   itemCategory: {
-    fontSize: 13,
-    color: '#999999',
+    fontSize: 12,
+    color: '#888888',
     marginBottom: 6,
+    fontWeight: '500',
   },
   verticalItemPrice: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#C62828',
-    letterSpacing: -0.31,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#CC2B2B', // Dark red
   },
   outOfStockText: {
-    color: '#999999',
+    color: '#AAAAAA',
   },
+
+  // Bottom Action Row (Edit + Add/Qty)
   itemActionsSection: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  stockButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  stockButtonActive: {
-    backgroundColor: '#FF6B6B',
-    borderColor: '#FF6B6B',
-  },
-  stockButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#666666',
-  },
-  stockButtonTextActive: {
-    color: '#FFFFFF',
+    marginTop: 'auto', // Push to bottom
   },
   editButton: {
-    width: 44,
-    height: 44,
-    backgroundColor: '#FFF5F5',
+    width: 40,
+    height: 40,
+    backgroundColor: '#FEF2F2', // Light red bg
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: '#C62828',
+    borderColor: '#FCA5A5',
     justifyContent: 'center',
     alignItems: 'center',
   },
   addButton: {
-    width: 80,
-    paddingVertical: 10,
+    flex: 1, // Fill remaining space
+    height: 40,
     backgroundColor: '#C62828',
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 14,
+    fontWeight: '700',
     color: '#FFFFFF',
   },
   quantityControl: {
+    flex: 1, // Fill remaining space
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F5F5F5',
+    justifyContent: 'space-between',
+    backgroundColor: '#F3F4F6',
     borderRadius: 10,
-    padding: 4,
-    gap: 8,
-    minWidth: 100,
+    height: 40,
+    paddingHorizontal: 2,
   },
   quantityButton: {
     width: 32,
     height: 32,
-    backgroundColor: '#C62828',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
   },
   quantityButtonText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: '#C62828',
+    marginTop: -2, // Optical alignment
   },
   quantityText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#333333',
-    minWidth: 24,
-    textAlign: 'center',
   },
+
+  // Footer
   cartFooter: {
     position: 'absolute',
     bottom: 0,
@@ -828,40 +885,117 @@ const styles = StyleSheet.create({
     right: 0,
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
+    borderTopColor: '#EEEEEE',
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: -2,
-    },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 8,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 20,
   },
   cartInfo: {
     flex: 1,
   },
   cartItems: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666666',
-    marginBottom: 4,
+    fontWeight: '500',
+    marginBottom: 2,
   },
   cartTotal: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#333333',
   },
   checkoutButton: {
     backgroundColor: '#C62828',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
     paddingVertical: 14,
-    borderRadius: 12,
+    borderRadius: 14,
+    shadowColor: '#C62828',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
   },
   checkoutText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  pinInput: {
+    borderWidth: 1.5,
+    borderColor: '#E0E0E0',
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 16,
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+    letterSpacing: 4,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonCancel: {
+    backgroundColor: '#F5F5F5',
+    borderWidth: 1,
+    borderColor: '#E0E0E0',
+  },
+  modalButtonSubmit: {
+    backgroundColor: '#C62828',
+  },
+  modalButtonTextCancel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  modalButtonTextSubmit: {
     fontSize: 16,
     fontWeight: '600',
     color: '#FFFFFF',

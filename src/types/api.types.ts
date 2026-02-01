@@ -26,9 +26,21 @@ export interface VendorProfile {
   fssai_license?: string;
   logo_url?: string;        // Pre-signed URL (temporary, expires in 1 hour)
   footer_note?: string;
+  bill_prefix?: string;
+  bill_starting_number?: number;
+  last_bill_number?: number;
+  cgst_percentage?: string | number;
+  sgst_percentage?: string | number;
   is_approved?: boolean;
   created_at?: string;
   updated_at?: string;
+  // Added for settings
+  gst_type?: 'Inclusive' | 'Exclusive';
+  default_gst_percentage?: number;
+  item_level_override?: boolean;
+  rounding_rule?: 'nearest' | 'up' | 'down' | 'none';
+  show_gst_breakdown?: boolean;
+  show_item_gst?: boolean;
 }
 
 export interface LoginResponse {
@@ -53,19 +65,20 @@ export interface RegisterRequest {
   password_confirm: string;
   business_name: string;
   phone: string;
-  gst_no?: string; // Optional field
+  gst_no: string; // Required per docs
   address: string;
   fssai_license?: string;
 }
 
+
 export interface ForgotPasswordRequest {
   username: string;
-  gst_no: string;
+  phone: string; // Changed from gst_no to phone
 }
 
 export interface ResetPasswordRequest {
   username: string;
-  gst_no: string;
+  phone: string; // Changed from gst_no to phone
   new_password: string;
   new_password_confirm: string;
 }
@@ -208,50 +221,54 @@ export interface Bill {
   id: string;                   // UUID (bill_id)
   invoice_number: string;
   bill_number?: string;
-  
+
   // Billing mode
   billing_mode: BillingMode;
-  
+
   // Vendor details (snapshot at time of bill)
   restaurant_name: string;
   address: string;
   gstin?: string;
   fssai_license?: string;
-  
+
   // Dates
   bill_date: string;
   timestamp: string;
-  
+
   // Items
   items: BillItem[];
-  
+
   // Amounts
   subtotal: number;
   discount_amount?: number;
   discount_percentage?: number;
-  
+
   // Tax (only for GST bills)
   cgst?: number;
+  cgst_amount?: string | number; // API match
   sgst?: number;
+  sgst_amount?: string | number; // API match
   igst?: number;
+  igst_amount?: string | number; // API match
   total_tax?: number;
-  
+
   // Total
   total: number;
-  
+  total_amount?: string | number; // API match
+
   // Payment
   payment_mode: PaymentMode;
   payment_reference?: string;   // For UPI/card transactions
   amount_paid: number;
   change_amount?: number;
-  
+
   // Customer (optional)
   customer_name?: string;
   customer_phone?: string;
-  
+
   // Notes
   notes?: string;
-  
+
   // Sync
   device_id?: string;
   is_synced?: boolean;
@@ -531,6 +548,15 @@ export interface BillData {
   billNumber: string;
   invoiceNumber?: string;
   timestamp: string;
+  // Added for Bill Success Screen fallback
+  vendor_id?: string;
+  restaurant_name?: string;
+  address?: string;
+  gstin?: string; // Legacy
+  gst_no?: string; // New naming
+  fssai_license?: string;
+  customer_name?: string;
+  customer_phone?: string;
 }
 
 // ==================== NAVIGATION TYPES ====================
@@ -543,7 +569,7 @@ export type RootStackParamList = {
   SetupSuccess: { businessName?: string };
   SetupFailure: { error: string };
   ModeSelection: undefined;
-  
+
   // Billing flow
   Billing: undefined;
   Checkout: { cart: CartItem[] };
@@ -561,7 +587,7 @@ export type RootStackParamList = {
     customDays?: string;
   };
   SaveSuccess: undefined;
-  
+
   // Admin flow
   AdminPin: undefined;
   SetAdminPin: undefined;
@@ -569,10 +595,10 @@ export type RootStackParamList = {
   ItemManagement: undefined;
   AddItem: undefined;
   EditItem: { item: MenuItem };
-  
+
   // Inventory Management
   InventoryManagement: undefined;
-  
+
   // Bill Format Options
   BillFormat: undefined;
   BusinessDetails: undefined;
@@ -581,7 +607,7 @@ export type RootStackParamList = {
   LogoUpload: undefined;
   FooterNote: undefined;
   BillNumbering: undefined;
-  
+
   // Other Admin Options
   GSTSettings: undefined;
   PrinterSetup: undefined;

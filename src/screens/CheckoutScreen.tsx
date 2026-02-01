@@ -12,43 +12,38 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList, BillingMode, PaymentMode } from '../types/business.types';
-import { generateInvoiceNumber, getNextBillNumber } from '../utils/billNumbering';
 import { calculateGST, calculateItemGSTBreakdowns } from '../utils/gstCalculator';
-import { saveBill } from '../services/storage';
-import { getVendorProfile, getAuthToken } from '../services/auth';
-
-// Hardcoded API URL
-const API_BASE_URL = 'http://13.233.163.98:8000';
+import API from '../services/api';
 
 type CheckoutScreenProps = NativeStackScreenProps<RootStackParamList, 'Checkout'>;
 
 const CheckoutScreen: React.FC<CheckoutScreenProps> = ({ navigation, route }) => {
   const { cart } = route.params;
-  
+
   // Billing mode state
   const [billingMode, setBillingMode] = useState<BillingMode>('gst');
-  
+
   // Default to Intra-State (False) since buttons are removed
   const [isInterState, setIsInterState] = useState(false);
-  
+
   // GST Type: Default to 'exclusive'
   const [gstType, setGstType] = useState<'inclusive' | 'exclusive'>('exclusive');
-  
+
   // Discount state
   const [discountAmount, setDiscountAmount] = useState('');
-  
+
   // Payment state
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash');
   const [paymentReference, setPaymentReference] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
-  
+
   // Customer info (optional)
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
-  
+
   // Notes
   const [notes, setNotes] = useState('');
-  
+
   const [isGenerating, setIsGenerating] = useState(false);
 
   // Animation Refs
@@ -158,114 +153,52 @@ const CheckoutScreen: React.FC<CheckoutScreenProps> = ({ navigation, route }) =>
     try {
       setIsGenerating(true);
 
-      // 1. Prepare Data
-      const invoiceNumber = await generateInvoiceNumber(billingMode);
-      const billNumber = await getNextBillNumber();
       const timestamp = new Date().toISOString();
       const billDate = new Date().toISOString().split('T')[0];
 
-      // Transform cart items to bill items format
-      const billItems = itemBreakdowns.map((breakdown, index) => {
+      // Prepare items data for API
+      const itemsData = itemBreakdowns.map((breakdown, index) => {
         const cartItem = cart[index];
         return {
-          id: `${cartItem.id}-${Date.now()}-${index}`,
           item_id: cartItem.id,
-          name: cartItem.name,
-          price: cartItem.price,
-          mrp_price: breakdown.mrpPrice,
+          item_name: cartItem.name,
+          price: Number(cartItem.price).toFixed(2),
+          mrp_price: Number(breakdown.mrpPrice).toFixed(2),
           price_type: breakdown.priceType,
-          gst_percentage: breakdown.gstPercentage,
-          quantity: breakdown.quantity,
-          subtotal: breakdown.itemSubtotal,
-          item_gst: breakdown.itemGST,
-          additional_discount: breakdown.itemDiscount,
-          discount_amount: breakdown.itemDiscount,
-          veg_nonveg: cartItem.veg_nonveg,
+          gst_percentage: String(breakdown.gstPercentage),
+          quantity: String(breakdown.quantity),
+          subtotal: Number(breakdown.itemSubtotal).toFixed(2),
+          item_gst_amount: Number(breakdown.itemGST).toFixed(2),
+          veg_nonveg: (cartItem.veg_nonveg === 'nonveg' ? 'non_veg' : cartItem.veg_nonveg) as any,
         };
       });
 
-      // 2. Save Locally (Offline First)
-      const localBillId = await saveBill({
-        invoice_number: invoiceNumber,
-        bill_number: billNumber,
+      // Prepare API payload
+      const billPayload = {
         billing_mode: billingMode,
-        items: billItems,
-        subtotal: gstCalculation.subtotal,
-        discount_amount: gstCalculation.totalDiscount,
-        discount_percentage: gstCalculation.totalDiscount > 0 
-          ? (gstCalculation.totalDiscount / (gstCalculation.subtotal + gstCalculation.totalDiscount)) * 100 
-          : 0,
-        cgst_amount: gstCalculation.cgst,
-        sgst_amount: gstCalculation.sgst,
-        igst_amount: gstCalculation.igst,
-        total_tax: gstCalculation.totalTax,
-        total_amount: gstCalculation.total,
+        bill_date: billDate,
+        items_data: itemsData,
+        subtotal: Number(gstCalculation.subtotal).toFixed(2),
+        cgst_amount: Number(gstCalculation.cgst).toFixed(2),
+        sgst_amount: Number(gstCalculation.sgst).toFixed(2),
+        igst_amount: Number(gstCalculation.igst).toFixed(2),
+        total_tax: Number(gstCalculation.totalTax).toFixed(2),
+        total_amount: Number(gstCalculation.total).toFixed(2),
         payment_mode: paymentMode,
         payment_reference: paymentReference.trim() || undefined,
-        amount_paid: paymentMode === 'credit' ? 0 : calculatedAmountPaid,
-        change_amount: changeAmount,
+        amount_paid: paymentMode === 'credit' ? "0.00" : Number(calculatedAmountPaid).toFixed(2),
         customer_name: customerName.trim() || undefined,
         customer_phone: customerPhone.trim() || undefined,
-        notes: notes.trim() || undefined,
-        bill_date: billDate,
-      });
+      };
 
-      console.log('✅ Bill saved locally:', invoiceNumber);
+      console.log('📡 generating bill via API...', JSON.stringify(billPayload, null, 2));
 
-      // 3. Attempt Immediate API Sync (Online)
-      try {
-        const token = await getAuthToken();
-        const vendorProfile = await getVendorProfile();
-        
-        if (token) {
-          const billPayload = {
-            bill_data: {
-              invoice_number: invoiceNumber,
-              bill_id: localBillId,
-              billing_mode: billingMode,
-              restaurant_name: vendorProfile?.business_name || "Store",
-              address: vendorProfile?.address || "",
-              gstin: vendorProfile?.gst_no || "",
-              fssai_license: vendorProfile?.fssai_license,
-              bill_number: billNumber,
-              bill_date: billDate,
-              items: billItems,
-              subtotal: gstCalculation.subtotal,
-              cgst: gstCalculation.cgst,
-              sgst: gstCalculation.sgst,
-              igst: gstCalculation.igst,
-              total_tax: gstCalculation.totalTax,
-              total: gstCalculation.total,
-              payment_mode: paymentMode,
-              amount_paid: paymentMode === 'credit' ? 0 : calculatedAmountPaid,
-              timestamp: timestamp
-            },
-            device_id: "mobile-device-001"
-          };
+      // Call API
+      const response = await API.bills.create(billPayload);
 
-          console.log('📡 Attempting immediate sync for bill:', invoiceNumber);
-          
-          const response = await fetch(`${API_BASE_URL}/backup/sync`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Token ${token}`,
-            },
-            body: JSON.stringify([billPayload])
-          });
+      console.log('✅ Bill generated successfully:', response);
 
-          if (response.ok) {
-             console.log('✅ Immediate sync successful!');
-          } else {
-             const errText = await response.text();
-             console.log('⚠️ Sync response error:', response.status, errText);
-          }
-        }
-      } catch (syncError) {
-        console.log('⚠️ Immediate sync failed (bill is safe locally):', syncError);
-      }
-
-      // 4. Navigate to Success
+      // Navigate to Success
       navigation.navigate('BillSuccess', {
         cart,
         subtotal: gstCalculation.subtotal,
@@ -281,14 +214,22 @@ const CheckoutScreen: React.FC<CheckoutScreenProps> = ({ navigation, route }) =>
         paymentReference: paymentReference.trim() || undefined,
         amountPaid: calculatedAmountPaid,
         changeAmount: changeAmount,
-        billNumber,
-        invoiceNumber,
+        billNumber: response.bill_number || '',
+        invoiceNumber: response.invoice_number,
         timestamp,
+        vendor_id: response.vendor_id,
+        restaurant_name: response.restaurant_name,
+        address: response.address,
+        gstin: response.gstin,
+        fssai_license: response.fssai_license,
+        customer_name: response.customer_name,
+        customer_phone: response.customer_phone,
       });
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to generate bill:', error);
-      Alert.alert('Error', 'Failed to generate bill. Please try again.', [{ text: 'OK' }]);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to generate bill. Please try again.';
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsGenerating(false);
     }
@@ -463,9 +404,9 @@ const CheckoutScreen: React.FC<CheckoutScreenProps> = ({ navigation, route }) =>
           {(paymentMode === 'upi' || paymentMode === 'card' || paymentMode === 'other') && (
             <View style={styles.paymentReferenceContainer}>
               <Text style={styles.paymentReferenceLabel}>
-                {paymentMode === 'upi' ? 'UPI Transaction ID' : 
-                 paymentMode === 'card' ? 'Card Transaction ID' : 
-                 'Reference Number'}
+                {paymentMode === 'upi' ? 'UPI Transaction ID' :
+                  paymentMode === 'card' ? 'Card Transaction ID' :
+                    'Reference Number'}
               </Text>
               <TextInput
                 style={styles.paymentReferenceInput}
@@ -555,14 +496,14 @@ const CheckoutScreen: React.FC<CheckoutScreenProps> = ({ navigation, route }) =>
             <Text style={styles.billLabel}>Subtotal</Text>
             <Text style={styles.billValue}>₹{gstCalculation.subtotal.toFixed(2)}</Text>
           </View>
-          
+
           {gstCalculation.totalDiscount > 0 && (
             <View style={styles.billRow}>
               <Text style={styles.billLabel}>Discount</Text>
               <Text style={styles.billValue}>-₹{gstCalculation.totalDiscount.toFixed(2)}</Text>
             </View>
           )}
-          
+
           {billingMode === 'gst' && gstCalculation.totalTax > 0 && (
             <>
               {!isInterState ? (
@@ -588,7 +529,7 @@ const CheckoutScreen: React.FC<CheckoutScreenProps> = ({ navigation, route }) =>
               </View>
             </>
           )}
-          
+
           <View style={[styles.billRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total</Text>
             <Text style={styles.totalValue}>₹{gstCalculation.total.toFixed(2)}</Text>

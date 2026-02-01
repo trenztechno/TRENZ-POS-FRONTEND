@@ -1,4 +1,4 @@
-import React, {useEffect, useRef, useState} from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,11 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
-import {NativeStackScreenProps} from '@react-navigation/native-stack';
-import Svg, {Path} from 'react-native-svg';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import Svg, { Path } from 'react-native-svg';
 import AnimatedButton from '../components/AnimatedButton';
-import type {RootStackParamList} from '../types/business.types';
-import { getBusinessSettings } from '../services/storage';
+import type { RootStackParamList } from '../types/business.types';
+import API from '../services/api';
 import { getVendorProfile } from '../services/auth';
 import { GSTBillTemplate, NonGSTBillTemplate } from '../components/templates';
 import type { GSTBillData, NonGSTBillData } from '../components/templates';
@@ -33,7 +33,7 @@ const CheckIcon = () => (
   </Svg>
 );
 
-const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({navigation, route}) => {
+const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({ navigation, route }) => {
   const billData = route.params;
 
   const [formattedBill, setFormattedBill] = useState<GSTBillData | NonGSTBillData | null>(null);
@@ -61,26 +61,54 @@ const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({navigation, route}
 
   const loadBusinessInfo = async () => {
     try {
-      // Try to get vendor profile first
+      // Try to get vendor profile from cache first
       let vendorProfile = await getVendorProfile();
-      
-      // Fallback to business settings if no vendor profile
+
+      // If not in cache, try fetching from API
       if (!vendorProfile) {
-        const settings = await getBusinessSettings();
+        try {
+          console.log('🔄 Fetching vendor profile from API...');
+          vendorProfile = await API.auth.getProfile();
+        } catch (err) {
+          console.warn('⚠️ Failed to fetch vendor profile from API, falling back to bill snapshot');
+        }
+      }
+
+      // Fallback to bill snapshot if no vendor profile found (Online-Only robust fallback)
+      if (!vendorProfile) {
         vendorProfile = {
-          business_name: settings?.business_name || 'Business Name',
-          address: settings?.business_address || 'Address not set',
-          gst_no: settings?.business_gst || '',
-          fssai_license: settings?.business_fssai || '',
-          phone: settings?.business_phone || '',
-          footer_note: settings?.bill_footer_note || 'Thank You! Visit Again',
-          logo_url: settings?.business_logo_path || settings?.logo_path,
+          id: billData.vendor_id || 'unknown_vendor',
+          business_name: billData.restaurant_name || 'Business Name',
+          address: billData.address || '',
+          gst_no: billData.gstin || billData.gst_no || '',
+          fssai_license: billData.fssai_license || '',
+          phone: billData.customer_phone || '',
+          footer_note: 'Thank You! Visit Again',
+          logo_url: undefined,
+          username: 'vendor', // dummy
+          email: '', // dummy
+          is_approved: true,
         };
       }
 
       // Format the bill data
-      const formatted = formatBill(billData, vendorProfile);
-      setFormattedBill(formatted);
+      if (vendorProfile) {
+        const formatted = formatBill(billData, vendorProfile);
+        setFormattedBill(formatted);
+      } else {
+        // Should not happen due to fallback, but for strict TS
+        console.warn('No vendor profile available even after fallback');
+        const fallbackVendor = {
+          id: 'unknown',
+          business_name: 'Business',
+          address: '',
+          phone: '',
+          gst_no: '',
+          is_approved: true
+        };
+        const formatted = formatBill(billData, fallbackVendor as any);
+        setFormattedBill(formatted);
+      }
     } catch (error) {
       console.error('Failed to load business info:', error);
       Alert.alert('Error', 'Failed to load bill details. Please try again.');
@@ -194,7 +222,7 @@ const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({navigation, route}
             styles.iconContainer,
             {
               opacity: checkOpacity,
-              transform: [{scale: checkScale}],
+              transform: [{ scale: checkScale }],
             },
           ]}>
           <CheckIcon />
@@ -206,7 +234,7 @@ const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({navigation, route}
             styles.titleContainer,
             {
               opacity: titleOpacity,
-              transform: [{translateY: titleTranslateY}],
+              transform: [{ translateY: titleTranslateY }],
             },
           ]}>
           <Text style={styles.title}>Bill Generated Successfully</Text>
@@ -221,17 +249,17 @@ const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({navigation, route}
             styles.billTemplateContainer,
             {
               opacity: billOpacity,
-              transform: [{scale: billScale}],
+              transform: [{ scale: billScale }],
             },
           ]}>
           {billData.billing_mode === 'gst' ? (
-            <GSTBillTemplate 
-              data={formattedBill as GSTBillData} 
+            <GSTBillTemplate
+              data={formattedBill as GSTBillData}
               paperWidth={paperWidth}
             />
           ) : (
-            <NonGSTBillTemplate 
-              data={formattedBill as NonGSTBillData} 
+            <NonGSTBillTemplate
+              data={formattedBill as NonGSTBillData}
               paperWidth={paperWidth}
             />
           )}
@@ -244,7 +272,7 @@ const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({navigation, route}
           styles.buttonsContainer,
           {
             opacity: buttonsOpacity,
-            transform: [{translateY: buttonsTranslateY}],
+            transform: [{ translateY: buttonsTranslateY }],
           },
         ]}>
         <View style={styles.buttonRow}>

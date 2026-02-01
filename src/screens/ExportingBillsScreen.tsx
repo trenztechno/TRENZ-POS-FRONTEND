@@ -57,21 +57,21 @@ const ExportingBillsScreen: React.FC<ExportingBillsScreenProps> = ({
       setProgress(15);
       setStatusText('Calculating date range...');
       await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
-      
-      const dateRange = calculateDateRange(exportType, customDays);
+
+      const dateRange = calculateDateRange(exportType, customDays ? String(customDays) : undefined);
 
       // Step 2: Load bills from database (40%)
       setProgress(40);
       setStatusText('Loading bills from database...');
       await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
-      
+
       const allBills = await getBills();
 
       // Step 3: Filter bills (60%)
       setProgress(60);
       setStatusText('Filtering bills...');
       await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
-      
+
       const filteredBills = allBills.filter(bill => {
         const billDate = new Date(bill.created_at);
         return billDate >= dateRange.start && billDate <= dateRange.end;
@@ -81,7 +81,7 @@ const ExportingBillsScreen: React.FC<ExportingBillsScreenProps> = ({
       setProgress(80);
       setStatusText('Formatting export data...');
       await new Promise<void>(resolve => setTimeout(() => resolve(), 300));
-      
+
       const exportData = formatBillsForExport(filteredBills);
 
       // Step 5: Complete (100%)
@@ -117,7 +117,7 @@ const ExportingBillsScreen: React.FC<ExportingBillsScreenProps> = ({
   const calculateDateRange = (type: string, days?: string) => {
     const end = new Date();
     end.setHours(23, 59, 59, 999);
-    
+
     let start = new Date();
     start.setHours(0, 0, 0, 0);
 

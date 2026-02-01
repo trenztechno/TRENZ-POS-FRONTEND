@@ -16,10 +16,8 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
-import { getCategories, createItem } from '../services/storage';
-import {syncItems} from '../services/sync';
 import { launchCamera, launchImageLibrary, ImageLibraryOptions, CameraOptions } from 'react-native-image-picker';
-import {API} from '../services/api';
+import { API } from '../services/api';
 
 type AddItemScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'AddItem'>;
@@ -29,26 +27,25 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
   // --- State Management ---
   const [itemName, setItemName] = useState('');
   const [sku, setSku] = useState(''); // New SKU State
-  
+
   // Pricing State
   const [basePrice, setBasePrice] = useState('');
-  const [mrpPrice, setMrpPrice] = useState('');
-  
+
   // Attributes
   // Changed default from '0' to '' so no option is pre-selected
-  const [gstPercentage, setGstPercentage] = useState(''); 
+  const [gstPercentage, setGstPercentage] = useState('');
   const [vegNonVeg, setVegNonVeg] = useState<'veg' | 'nonveg' | ''>('');
   const [additionalDiscount, setAdditionalDiscount] = useState('');
-  
+
   // Categories
   const [category, setCategory] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [categories, setCategories] = useState<any[]>([]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  
+
   // Image
   const [imagePath, setImagePath] = useState('');
-  
+
   // System State
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -60,7 +57,7 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
   // --- Initialization ---
   useEffect(() => {
     initializeCategories();
-    
+
     // Entrance Animation
     Animated.stagger(100, [
       Animated.timing(headerAnim, {
@@ -76,121 +73,50 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
     ]).start();
   }, []);
 
-  // --- Auto-Calculation Logic ---
-  
-  // 1. Calculate MRP when Base Price or GST changes
-  const updateMrpFromBase = (base: string, gst: string) => {
-    const baseVal = parseFloat(base);
-    const gstVal = parseFloat(gst);
-    
-    if (!isNaN(baseVal) && !isNaN(gstVal)) {
-      const calculatedMrp = baseVal + (baseVal * (gstVal / 100));
-      // Round to 2 decimals
-      setMrpPrice(calculatedMrp.toFixed(2));
-    } else if (!isNaN(baseVal) && gst === '') {
-       // If no GST selected, MRP = Base
-       setMrpPrice(baseVal.toFixed(2));
-    } else if (base === '') {
-      setMrpPrice('');
-    }
-  };
-
-  // 2. Calculate Base Price when MRP changes
-  const updateBaseFromMrp = (mrp: string, gst: string) => {
-    const mrpVal = parseFloat(mrp);
-    const gstVal = parseFloat(gst);
-
-    if (!isNaN(mrpVal) && !isNaN(gstVal)) {
-      // Formula: Base = MRP / (1 + GST/100)
-      const calculatedBase = mrpVal / (1 + (gstVal / 100));
-      setBasePrice(calculatedBase.toFixed(2));
-    } else if (!isNaN(mrpVal) && gst === '') {
-      // If no GST selected, Base = MRP
-      setBasePrice(mrpVal.toFixed(2));
-    } else if (mrp === '') {
-      setBasePrice('');
-    }
-  };
-
   // Handler for GST Change
   const handleGstChange = (newGst: string) => {
     setGstPercentage(newGst);
-    // If we have a base price, update MRP to reflect new tax
-    if (basePrice) {
-      updateMrpFromBase(basePrice, newGst);
-    }
   };
 
-  // --- Data Loading ---
+  // --- Data Loading (API Only) ---
   const initializeCategories = async () => {
     try {
-      // 1. Try Local DB first for speed
-      const localCategories = await getCategories();
-      
-      if (localCategories.length > 0) {
-        setCategories(localCategories);
-        // Default select first category
-        setCategory(localCategories[0].name);
-        setCategoryId(localCategories[0].id);
-        setIsLoading(false);
-        
-        // Background Refresh
-        loadCategories(true);
-      } else {
-        // 2. If empty, fetch from API immediately
-        await loadCategories(true);
+      setIsLoading(true);
+      console.log('🌐 Loading categories from API (online-only)...');
+
+      const apiCategories = await API.categories.getAll();
+
+      if (apiCategories && apiCategories.length > 0) {
+        setCategories(apiCategories);
+        setCategory(apiCategories[0].name);
+        setCategoryId(apiCategories[0].id);
+
+        console.log('✅ Loaded categories from API:', apiCategories.length);
       }
     } catch (error) {
-      console.error('Failed to initialize categories:', error);
+      console.error('Failed to load categories:', error);
+      Alert.alert('Error', 'Failed to load categories. Please check your connection.');
+    } finally {
       setIsLoading(false);
     }
   };
 
-  const loadCategories = async (fromApi = false) => {
+  const loadCategories = async () => {
     try {
-      if (fromApi) {
-        // Dynamic import to avoid circular dependencies if any
-        const API = await import('../services/api');
-        const apiCategories = await API.default.categories.getAll();
-        
-        // Update UI State IMMEDIATELY with API data
-        if (apiCategories && apiCategories.length > 0) {
-          setCategories(apiCategories);
-          
-          // If no category selected yet, select the first one
-          if (!categoryId) {
-            setCategory(apiCategories[0].name);
-            setCategoryId(apiCategories[0].id);
-          }
-        }
+      setIsLoading(true);
+      const apiCategories = await API.categories.getAll();
 
-        // Save to DB in background
-        const { getDatabase } = await import('../database/schema');
-        const db = getDatabase();
-        const now = new Date().toISOString();
-        
-        for (const cat of apiCategories) {
-          await db.execute(
-            `INSERT OR REPLACE INTO categories 
-             (id, name, description, is_active, sort_order, vendor_id, is_synced, server_updated_at, created_at, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              cat.id, 
-              cat.name, 
-              cat.description, 
-              cat.is_active ? 1 : 0, 
-              cat.sort_order, 
-              cat.vendor_id, 
-              1, // is_synced
-              cat.updated_at, 
-              cat.created_at, 
-              now
-            ]
-          );
+      if (apiCategories && apiCategories.length > 0) {
+        setCategories(apiCategories);
+
+        if (!categoryId) {
+          setCategory(apiCategories[0].name);
+          setCategoryId(apiCategories[0].id);
         }
       }
     } catch (error: any) {
       console.error('Failed to load categories:', error);
+      Alert.alert('Error', 'Failed to load categories. Please check your connection.');
     } finally {
       setIsLoading(false);
     }
@@ -199,7 +125,7 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
   const handleSyncCategories = async () => {
     try {
       setIsLoading(true);
-      await loadCategories(true);
+      await loadCategories();
       Alert.alert('Success', 'Categories synced from server!');
     } catch (error) {
       Alert.alert('Sync Failed', 'Could not fetch categories. Check internet connection.');
@@ -222,7 +148,15 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
       return;
     }
 
+    // Double check if category belongs to current list (handle stale state)
+    const selectedCat = categories.find(c => c.id === categoryId);
+    if (categories.length > 0 && !selectedCat) {
+      Alert.alert('Error', 'Selected category is invalid. Please re-select category.');
+      return;
+    }
+
     setIsSaving(true);
+    console.log("📝 Preparing to save item...", { name: itemName, categoryId });
 
     try {
       // 2. Prepare Payload
@@ -230,8 +164,8 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
         name: itemName.trim(),
         sku: sku.trim() || undefined,
         price: parseFloat(basePrice),
-        mrp_price: parseFloat(mrpPrice) || parseFloat(basePrice),
-        price_type: 'exclusive', 
+        mrp_price: parseFloat(basePrice), // MRP same as base price
+        price_type: 'exclusive',
         gst_percentage: gstPercentage === '' ? 0 : parseFloat(gstPercentage),
         veg_nonveg: vegNonVeg || undefined,
         additional_discount: parseFloat(additionalDiscount) || 0,
@@ -239,17 +173,9 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
         stock_quantity: 0,
       };
 
-      // 3. Save to Local Storage (Keep this for offline backup)
-      try {
-        await createItem({ ...itemData, image_path: imagePath });
-        console.log("Saved to local database");
-      } catch (localErr) {
-        console.warn("Local save failed, proceeding to API:", localErr);
-      }
-
-      // 4. CALL API IMMEDIATELY
+      // 3. Save to API only
       console.log("🚀 Sending to API...");
-      
+
       let response;
       if (imagePath) {
         // Use the method from your api.ts that handles Multipart/Form-Data
@@ -269,7 +195,7 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
 
     } catch (error: any) {
       console.error('❌ API Failed:', error);
-      
+
       // Extract error message from API response if available
       let errorMessage = 'Failed to save item. Please check your internet connection.';
       if (error.response?.data) {
@@ -285,11 +211,11 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
 
   // --- Image Handling ---
   const handleImagePicker = (type: 'camera' | 'gallery') => {
-    const options: CameraOptions | ImageLibraryOptions = { 
-      mediaType: 'photo', 
-      quality: 0.8, 
+    const options: CameraOptions | ImageLibraryOptions = {
+      mediaType: 'photo',
+      quality: 0.8,
       saveToPhotos: true,
-      includeBase64: false 
+      includeBase64: false
     };
 
     const callback = (response: any) => {
@@ -334,9 +260,9 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
       {/* Header */}
-      <Animated.View style={[styles.header, { 
-        opacity: headerAnim, 
-        transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] 
+      <Animated.View style={[styles.header, {
+        opacity: headerAnim,
+        transform: [{ translateY: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }]
       }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
           <Text style={styles.backArrow}>←</Text>
@@ -346,16 +272,16 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
       </Animated.View>
 
       {/* Form Content */}
-      <Animated.View style={[styles.formContainer, { 
-        opacity: formAnim, 
-        transform: [{ translateY: formAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }] 
+      <Animated.View style={[styles.formContainer, {
+        opacity: formAnim,
+        transform: [{ translateY: formAnim.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) }]
       }]}>
-        <ScrollView 
+        <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          
+
           {/* 1. Image Upload */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Item Image</Text>
@@ -407,9 +333,9 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Dietary Type</Text>
             <View style={styles.dietaryContainer}>
-              
+
               {/* Veg Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.dietaryButton, vegNonVeg === 'veg' && styles.dietaryActive]}
                 onPress={() => setVegNonVeg(vegNonVeg === 'veg' ? '' : 'veg')}
               >
@@ -421,7 +347,7 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
               </TouchableOpacity>
 
               {/* Non-Veg Button */}
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.dietaryButton, vegNonVeg === 'nonveg' && styles.dietaryActive]}
                 onPress={() => setVegNonVeg(vegNonVeg === 'nonveg' ? '' : 'nonveg')}
               >
@@ -468,46 +394,20 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
             />
           </View>
 
-          {/* 6. Pricing Fields (Split) */}
-          <View style={styles.rowContainer}>
-            {/* Base Price Input */}
-            <View style={[styles.fieldContainer, { flex: 1 }]}>
-              <Text style={styles.label}>Base Price *</Text>
-              <Text style={styles.helperText}>(Excl. GST)</Text>
-              <View style={styles.priceInputContainer}>
-                <Text style={styles.rupeeSymbol}>₹</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                  keyboardType="decimal-pad"
-                  value={basePrice}
-                  onChangeText={(val) => {
-                    setBasePrice(val);
-                    updateMrpFromBase(val, gstPercentage);
-                  }}
-                />
-              </View>
-            </View>
-
-            {/* MRP Input */}
-            <View style={[styles.fieldContainer, { flex: 1 }]}>
-              <Text style={styles.label}>MRP *</Text>
-              <Text style={styles.helperText}>(Incl. GST)</Text>
-              <View style={[styles.priceInputContainer, { backgroundColor: '#F8F9FA' }]}>
-                <Text style={styles.rupeeSymbol}>₹</Text>
-                <TextInput
-                  style={styles.priceInput}
-                  placeholder="0"
-                  placeholderTextColor="#999"
-                  keyboardType="decimal-pad"
-                  value={mrpPrice}
-                  onChangeText={(val) => {
-                    setMrpPrice(val);
-                    updateBaseFromMrp(val, gstPercentage);
-                  }}
-                />
-              </View>
+          {/* 6. Base Price Field */}
+          <View style={styles.fieldContainer}>
+            <Text style={styles.label}>Base Price *</Text>
+            <Text style={styles.helperText}>(Excluding GST)</Text>
+            <View style={styles.priceInputContainer}>
+              <Text style={styles.rupeeSymbol}>₹</Text>
+              <TextInput
+                style={styles.priceInput}
+                placeholder="0"
+                placeholderTextColor="#999"
+                keyboardType="decimal-pad"
+                value={basePrice}
+                onChangeText={setBasePrice}
+              />
             </View>
           </View>
 
@@ -546,8 +446,8 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
 
       {/* Footer - Save Button */}
       <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.saveButton, isSaving && styles.saveButtonDisabled]} 
+        <TouchableOpacity
+          style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
           onPress={handleSave}
           disabled={isSaving}
         >
@@ -566,7 +466,7 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
         animationType="fade"
         onRequestClose={() => setShowCategoryDropdown(false)}
       >
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
           onPress={() => setShowCategoryDropdown(false)}
@@ -579,7 +479,7 @@ const AddItemScreen: React.FC<AddItemScreenProps> = ({ navigation }) => {
                   <Text style={styles.modalCloseText}>✕</Text>
                 </TouchableOpacity>
               </View>
-              
+
               <ScrollView style={styles.modalScrollView}>
                 {categories.length > 0 ? (
                   categories.map((cat) => (
@@ -696,7 +596,7 @@ const styles = StyleSheet.create({
     marginTop: -4,
     marginBottom: 4,
   },
-  
+
   // Image Styles
   imageUploadInner: {
     height: 180,
@@ -769,7 +669,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333333',
   },
-  
+
   // Veg/Non-Veg Styles
   dietaryContainer: {
     flexDirection: 'row',
@@ -800,7 +700,7 @@ const styles = StyleSheet.create({
     color: '#333333',
     fontWeight: '700',
   },
-  
+
   // Veg Icon (Green Square, Green Dot)
   vegIconBorder: {
     width: 20,

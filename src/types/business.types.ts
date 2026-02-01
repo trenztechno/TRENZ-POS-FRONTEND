@@ -82,39 +82,50 @@ export interface BillItemData {
 export interface BillData {
   // Cart
   cart: CartItem[];
-  
+
   // Amounts
   subtotal: number;
   discount: number;
-  
+
   // Billing mode
   billing_mode: BillingMode;
-  
+
   // Tax breakdown (for GST bills)
   cgst?: number;
   sgst?: number;
   igst?: number;
   gst: number;                  // Legacy: total tax
   total_tax?: number;
-  
+
   // Total
   total: number;
-  
+
   // Payment
   paymentMethod: PaymentMode;
   paymentReference?: string;    // For UPI/card transactions
   amountPaid?: number;
   changeAmount?: number;
-  
+
   // Invoice info
   billNumber: string;
   invoiceNumber?: string;
+
   timestamp: string;
-  
+
+  // Added for Bill Success Screen fallback
+  vendor_id?: string;
+  restaurant_name?: string;
+  address?: string;
+  gstin?: string; // Legacy
+  gst_no?: string; // New naming
+  fssai_license?: string;
+
   // Customer
-  customerName?: string;
-  customerPhone?: string;
-  
+  customerName?: string; // Legacy/Internal
+  customerPhone?: string; // Legacy/Internal
+  customer_name?: string; // API Mapped
+  customer_phone?: string; // API Mapped
+
   // Notes
   notes?: string;
 }
@@ -125,10 +136,15 @@ export type RootStackParamList = {
   Welcome: undefined;
   Login: undefined;
   Signup: undefined;
+  ResetPassword: {
+    username: string;
+    phone: string;
+    businessName: string;
+  };
   SetupSuccess: { businessName?: string };
   SetupFailure: { error: string };
   ModeSelection: undefined;
-  
+
   // Billing flow
   Billing: undefined;
   Checkout: { cart: CartItem[] };
@@ -137,7 +153,7 @@ export type RootStackParamList = {
   // Dashboard flow
   Dashboard: undefined;
   SelectSummaryDate: undefined;
-  
+
   // UPDATED: Added flexible date params
   DownloadingSummary: {
     dateRange: 'today' | 'yesterday' | 'last7days' | 'custom';
@@ -163,7 +179,7 @@ export type RootStackParamList = {
     title: string;
   };
   SaveSuccess: undefined;
-  
+
   // Admin flow
   AdminPin: undefined;
   SetAdminPin: undefined;
@@ -172,7 +188,7 @@ export type RootStackParamList = {
   InventoryManagement: undefined;
   AddItem: undefined;
   EditItem: { item: MenuItem };
-  
+
   // Bill Format Options
   BillFormat: undefined;
   BusinessDetails: undefined;
@@ -181,7 +197,7 @@ export type RootStackParamList = {
   LogoUpload: undefined;
   FooterNote: undefined;
   BillNumbering: undefined;
-  
+
   // Other Admin Options
   GSTSettings: undefined;
   PrinterSetup: undefined;

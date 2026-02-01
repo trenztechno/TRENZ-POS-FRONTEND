@@ -1,16 +1,16 @@
-import React, {useEffect, useRef, useState} from 'react';
-import {View, StyleSheet, Animated, Text} from 'react-native';
-import {NativeStackNavigationProp} from '@react-navigation/native-stack';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Animated, Text } from 'react-native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import StoreIcon from '../assets/icons/store.svg';
-import type {RootStackParamList} from '../types/business.types';
-import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+import type { RootStackParamList } from '../types/business.types';
+// Local storage import removed
 import { checkAuthStatus } from '../services/auth';
 
 type SplashScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'Splash'>;
 };
 
-const LoadingDot: React.FC<{delay: number}> = ({delay}) => {
+const LoadingDot: React.FC<{ delay: number }> = ({ delay }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
@@ -55,7 +55,7 @@ const LoadingDot: React.FC<{delay: number}> = ({delay}) => {
       style={[
         styles.dot,
         {
-          transform: [{scale: scaleAnim}],
+          transform: [{ scale: scaleAnim }],
           opacity: opacityAnim,
         },
       ]}
@@ -63,7 +63,7 @@ const LoadingDot: React.FC<{delay: number}> = ({delay}) => {
   );
 };
 
-const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
+const SplashScreen: React.FC<SplashScreenProps> = ({ navigation }) => {
   const [businessName, setBusinessName] = useState<string>('');
   const [isReady, setIsReady] = useState(false);
 
@@ -74,8 +74,9 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
   const businessNameOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    checkBusinessSetup();
+    // Just start animations and set ready
     startAnimations();
+    setTimeout(() => setIsReady(true), 1000);
   }, []);
 
   useEffect(() => {
@@ -84,40 +85,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
     }
   }, [isReady]);
 
-  const checkBusinessSetup = async () => {
-    try {
-      const settings = await getBusinessSettings();
-      
-      // Track app launch
-      const launchCount = (settings?.app_launch_count || 0) + 1;
-      const timestamp = new Date().toISOString();
-      
-      await saveBusinessSettings({
-        app_launch_count: launchCount,
-        last_app_launch: timestamp,
-      });
-
-      // Get business name if set up
-      if (settings?.business_name) {
-        setBusinessName(settings.business_name);
-        
-        // Animate business name
-        setTimeout(() => {
-          Animated.timing(businessNameOpacity, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }).start();
-        }, 1200);
-      }
-
-      setIsReady(true);
-    } catch (error) {
-      console.error('Failed to check business setup:', error);
-      // Continue anyway
-      setIsReady(true);
-    }
-  };
+  // Removed checkBusinessSetup as it relied on local storage
 
   const startAnimations = () => {
     Animated.sequence([
@@ -165,7 +133,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
     try {
       // Check authentication status first
       const authStatus = await checkAuthStatus();
-      
+
       if (authStatus.isAuthenticated && authStatus.userData) {
         // User is logged in - go directly to mode selection
         console.log('User is authenticated:', authStatus.userData.username);
@@ -183,14 +151,14 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
   };
 
   return (
-    <Animated.View style={[styles.container, {opacity: fadeOut}]}>
+    <Animated.View style={[styles.container, { opacity: fadeOut }]}>
       <View style={styles.content}>
         <Animated.View
           style={[
             styles.iconContainer,
             {
               opacity: iconOpacity,
-              transform: [{scale: iconScale}],
+              transform: [{ scale: iconScale }],
             },
           ]}>
           <View style={styles.iconShadow}>
@@ -199,12 +167,12 @@ const SplashScreen: React.FC<SplashScreenProps> = ({navigation}) => {
         </Animated.View>
 
         {businessName ? (
-          <Animated.View style={[styles.businessNameContainer, {opacity: businessNameOpacity}]}>
+          <Animated.View style={[styles.businessNameContainer, { opacity: businessNameOpacity }]}>
             <Text style={styles.businessName}>{businessName}</Text>
           </Animated.View>
         ) : null}
 
-        <Animated.View style={[styles.dotsContainer, {opacity: dotsOpacity}]}>
+        <Animated.View style={[styles.dotsContainer, { opacity: dotsOpacity }]}>
           <LoadingDot delay={0} />
           <LoadingDot delay={200} />
           <LoadingDot delay={400} />

@@ -16,7 +16,8 @@ import {
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
-import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
+import API from '../services/api';
+// import { getBusinessSettings, saveBusinessSettings } from '../services/storage';
 
 type FooterNoteScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'FooterNote'>;
@@ -55,10 +56,10 @@ const FooterNoteScreen: React.FC<FooterNoteScreenProps> = ({ navigation }) => {
   const loadFooterNote = async () => {
     try {
       setIsLoading(true);
-      const settings = await getBusinessSettings();
-      
-      if (settings && settings.bill_footer_note) {
-        setFooterText(settings.bill_footer_note);
+      const profile = await API.auth.getProfile();
+
+      if (profile && profile.footer_note) {
+        setFooterText(profile.footer_note);
       }
     } catch (error) {
       console.error('Failed to load footer note:', error);
@@ -76,10 +77,10 @@ const FooterNoteScreen: React.FC<FooterNoteScreenProps> = ({ navigation }) => {
     try {
       setIsSaving(true);
       setConfirmModalVisible(false);
-      
+
       // Save footer note to database
-      await saveBusinessSettings({
-        bill_footer_note: footerText.trim(),
+      await API.auth.updateProfile({
+        footer_note: footerText.trim(),
       });
 
       Alert.alert(

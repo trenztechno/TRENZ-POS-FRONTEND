@@ -7,6 +7,7 @@ import SplashScreen from '../screens/SplashScreen';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import SignupScreen from '../screens/SignupScreen';
+import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import SetupSuccessScreen from '../screens/SuccessScreen';
 import SetupFailureScreen from '../screens/FailureScreen';
 import ModeSelectionScreen from '../screens/ModeSelectionScreen';
@@ -68,6 +69,7 @@ const AppNavigator: React.FC = () => {
       screenOptions={{
         headerShown: false,
         animation: 'fade',
+        contentStyle: { paddingBottom: 24 }, // Global bottom padding for navigation bar safety
       }}
     >
       {/* Existing screens */}
@@ -85,6 +87,11 @@ const AppNavigator: React.FC = () => {
       <Stack.Screen
         name="Signup"
         component={SignupScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="ResetPassword"
+        component={ResetPasswordScreen}
         options={{ animation: 'slide_from_right' }}
       />
       <Stack.Screen
@@ -119,33 +126,33 @@ const AppNavigator: React.FC = () => {
         component={BillSuccessScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="Dashboard" 
+      <Stack.Screen
+        name="Dashboard"
         component={DashboardScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="SelectSummaryDate" 
+      <Stack.Screen
+        name="SelectSummaryDate"
         component={SelectSummaryDateScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="DownloadingSummary" 
+      <Stack.Screen
+        name="DownloadingSummary"
         component={DownloadingSummaryScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BillSummary" 
+      <Stack.Screen
+        name="BillSummary"
         component={BillSummaryScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="SaveSuccess" 
+      <Stack.Screen
+        name="SaveSuccess"
         component={SaveSuccessScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BillHistory" 
+      <Stack.Screen
+        name="BillHistory"
         component={BillHistoryScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
@@ -166,143 +173,143 @@ const AppNavigator: React.FC = () => {
         component={ItemManagementScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="AddItem" 
+      <Stack.Screen
+        name="AddItem"
         component={AddItemScreen}
         options={{ headerShown: false }}
       />
-      <Stack.Screen 
-        name="EditItem" 
+      <Stack.Screen
+        name="EditItem"
         component={EditItemScreen}
         options={{ headerShown: false }}
       />
-      
+
       {/* ==================== NEW: INVENTORY MANAGEMENT ==================== */}
-      <Stack.Screen 
-        name="InventoryManagement" 
+      <Stack.Screen
+        name="InventoryManagement"
         component={InventoryManagementScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
       {/* ==================== END NEW ==================== */}
-      
-      <Stack.Screen 
-        name="BillFormat" 
+
+      <Stack.Screen
+        name="BillFormat"
         component={BillFormatScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BusinessDetails" 
+      <Stack.Screen
+        name="BusinessDetails"
         component={BusinessDetailsScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="InvoiceFormat" 
+      <Stack.Screen
+        name="InvoiceFormat"
         component={InvoiceFormatScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="InvoiceStructure" 
+      <Stack.Screen
+        name="InvoiceStructure"
         component={InvoiceStructureScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="LogoUpload" 
+      <Stack.Screen
+        name="LogoUpload"
         component={LogoUploadScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="FooterNote" 
+      <Stack.Screen
+        name="FooterNote"
         component={FooterNoteScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-       <Stack.Screen 
-        name="BillNumbering" 
-        component={BillNumberingScreen} 
+      <Stack.Screen
+        name="BillNumbering"
+        component={BillNumberingScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="GSTSettings" 
+      <Stack.Screen
+        name="GSTSettings"
         component={GSTSettingsScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="PrinterSetup" 
-        component={PrinterSetupScreen} 
+      <Stack.Screen
+        name="PrinterSetup"
+        component={PrinterSetupScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="TestPrintPreview" 
+      <Stack.Screen
+        name="TestPrintPreview"
         component={TestPrintPreviewScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="AddPeople" 
+      <Stack.Screen
+        name="AddPeople"
         component={AddPeopleScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BackupData" 
-        component={BackupDataScreen} 
+      <Stack.Screen
+        name="BackupData"
+        component={BackupDataScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BackupDetails" 
-        component={BackupDetailsScreen} 
+      <Stack.Screen
+        name="BackupDetails"
+        component={BackupDetailsScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BackingUp" 
-        component={BackingUpScreen} 
+      <Stack.Screen
+        name="BackingUp"
+        component={BackingUpScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BackupComplete" 
-        component={BackupCompleteScreen} 
+      <Stack.Screen
+        name="BackupComplete"
+        component={BackupCompleteScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="ExportBills" 
-        component={ExportBillsScreen} 
+      <Stack.Screen
+        name="ExportBills"
+        component={ExportBillsScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BillScanner" 
-        component={BillScannerScreen} 
+      <Stack.Screen
+        name="BillScanner"
+        component={BillScannerScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="BillPreview" 
-        component={BillPreviewScreen} 
+      <Stack.Screen
+        name="BillPreview"
+        component={BillPreviewScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="ExportingBills" 
-        component={ExportingBillsScreen} 
+      <Stack.Screen
+        name="ExportingBills"
+        component={ExportingBillsScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="ExportSuccess" 
-        component={ExportSuccessScreen} 
+      <Stack.Screen
+        name="ExportSuccess"
+        component={ExportSuccessScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="RestoreData" 
+      <Stack.Screen
+        name="RestoreData"
         component={RestoreDataScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="RestoringData" 
+      <Stack.Screen
+        name="RestoringData"
         component={RestoringDataScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="RestoreSuccess" 
+      <Stack.Screen
+        name="RestoreSuccess"
         component={RestoreSuccessScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
-      <Stack.Screen 
-        name="SetAdminPin" 
-        component={SetAdminPinScreen} 
+      <Stack.Screen
+        name="SetAdminPin"
+        component={SetAdminPinScreen}
         options={{ animation: 'slide_from_right', animationDuration: 300 }}
       />
     </Stack.Navigator>

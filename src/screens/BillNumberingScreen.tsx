@@ -66,12 +66,14 @@ const BillNumberingScreen: React.FC<BillNumberingScreenProps> = ({ navigation })
   const loadSettings = async () => {
     try {
       const settingsJson = await AsyncStorage.getItem('bill_numbering');
-      
+
       if (settingsJson) {
         const settings: BillNumberingSettings = JSON.parse(settingsJson);
         setPrefix(settings.prefix || 'INV-');
         setStartingNumber(settings.startingNumber || '1001');
-        setIncludeDate(settings.includeDate !== undefined ? settings.includeDate : true);
+        setStartingNumber(settings.startingNumber || '1001');
+        // includeDate is mandatory true now
+        // setIncludeDate(settings.includeDate !== undefined ? settings.includeDate : true);
       }
     } catch (error) {
       console.error('Failed to load bill numbering settings:', error);
