@@ -65,18 +65,18 @@ class PrinterServiceImpl implements PrinterService {
     printData += this.leftAlign();
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
-    printData += this.formatCenterLine(data.restaurantName.toUpperCase(), paperWidth);
+    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address, paperWidth);
-    printData += this.formatCenterLine(`GSTIN: ${data.gstin}`, paperWidth);
-    if (data.fssaiLicense) printData += this.formatCenterLine(`FSSAI No: ${data.fssaiLicense}`, paperWidth);
+    printData += this.formatCenterLine(data.address || '', paperWidth);
+    printData += this.formatCenterLine(`GSTIN: ${data.gstin || ''}`, paperWidth);
+    printData += this.formatCenterLine(`FSSAI No: ${data.fssaiLicense || 'N/A'}`, paperWidth);
     if (data.phone) printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
     printData += '\n';
     printData += this.lineSeparator(paperWidth);
-    printData += this.formatLine(`Bill No: ${data.billNumber}`, paperWidth);
-    printData += this.formatLine(`Date: ${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
-    printData += this.formatLine(`Invoice No: ${data.invoiceNumber}`, paperWidth);
+    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
+    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    printData += this.formatLabelValueRow('Invoice No:', data.invoiceNumber, paperWidth);
     if (data.tableNumber) printData += this.formatLine(`Table: ${data.tableNumber}`, paperWidth);
     printData += '\n';
     printData += this.lineSeparator(paperWidth);
@@ -84,11 +84,11 @@ class PrinterServiceImpl implements PrinterService {
     printData += this.formatItemHeaderRow(paperWidth);
     printData += this.boldOff();
     printData += this.lineSeparator(paperWidth);
-    for (const item of data.items) {
-      printData += this.formatItemRow(item.name, item.quantity.toString(), item.rate.toFixed(2), item.amount.toFixed(2), paperWidth);
-      if (item.gstPercentage) printData += this.formatLine(`  GST ${item.gstPercentage}%`, paperWidth);
+    data.items.forEach((item, idx) => {
+      const name = idx === 0 ? ' ' + item.name : item.name;
+      printData += this.formatItemRow(name, item.quantity.toString(), item.rate.toFixed(2), item.amount.toFixed(2), paperWidth);
       printData += '\n';
-    }
+    });
     printData += this.lineSeparator(paperWidth);
     printData += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
     printData += this.formatAmountRow(`CGST (${data.cgstPercentage}%):`, data.cgstAmount, paperWidth);
@@ -119,26 +119,27 @@ class PrinterServiceImpl implements PrinterService {
     printData += this.leftAlign();
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
-    printData += this.formatCenterLine(data.restaurantName.toUpperCase(), paperWidth);
+    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address, paperWidth);
+    printData += this.formatCenterLine(data.address || '', paperWidth);
     if (data.phone) printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
     printData += '\n';
     printData += this.lineSeparator(paperWidth);
-    printData += this.formatLine(`Bill No: ${data.billNumber}`, paperWidth);
-    printData += this.formatLine(`Date: ${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
-    if (data.tableNumber) printData += this.formatLine(`Table: ${data.tableNumber}`, paperWidth);
+    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
+    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    if (data.tableNumber) printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
     printData += '\n';
     printData += this.lineSeparator(paperWidth);
     printData += this.boldOn();
     printData += this.formatItemHeaderRowNonGST(paperWidth);
     printData += this.boldOff();
     printData += this.lineSeparator(paperWidth);
-    for (const item of data.items) {
-      printData += this.formatItemRowNonGST(item.name, item.quantity.toString(), item.amount.toFixed(2), paperWidth);
+    data.items.forEach((item, idx) => {
+      const name = idx === 0 ? ' ' + item.name : item.name;
+      printData += this.formatItemRowNonGST(name, item.quantity.toString(), item.amount.toFixed(2), paperWidth);
       printData += '\n';
-    }
+    });
     printData += this.lineSeparator(paperWidth);
     printData += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
     printData += '\n';
@@ -327,6 +328,16 @@ class PrinterServiceImpl implements PrinterService {
     return line.length <= maxChars ? line + ' '.repeat(maxChars - line.length) + '\n' : line.substring(0, maxChars) + '\n';
   }
 
+  /**
+   * Label left, value right (same style as CGST/SGST) for Bill No, Date, Invoice No.
+   */
+  private formatLabelValueRow(label: string, value: string, paperWidth: 58 | 80): string {
+    const maxChars = paperWidth === 58 ? 32 : 48;
+    const spaces = Math.max(1, maxChars - label.length - value.length);
+    const line = label + ' '.repeat(spaces) + value;
+    return line.length <= maxChars ? line + ' '.repeat(maxChars - line.length) + '\n' : line.substring(0, maxChars) + '\n';
+  }
+
   /** Column widths for item table: Item (left), Qty, Rate, Amount (right). 80mm=48, 58mm=32. */
   private getItemColumnWidths(paperWidth: 58 | 80): { item: number; qty: number; rate: number; amount: number } {
     if (paperWidth === 80) return { item: 18, qty: 4, rate: 10, amount: 12 };
@@ -411,17 +422,15 @@ class PrinterServiceImpl implements PrinterService {
     printData += ESC + '@'; // Reset printer
     printData += this.leftAlign();
 
-    // Header — store name, GSTIN, FSSAI: centered with equal left/right padding (like UI)
+    // Header — store name, GSTIN, FSSAI: centered (always print all with fallbacks so they show)
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
-    printData += this.formatCenterLine(data.restaurantName.toUpperCase(), paperWidth);
+    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address, paperWidth);
-    printData += this.formatCenterLine(`GSTIN: ${data.gstin}`, paperWidth);
-    if (data.fssaiLicense) {
-      printData += this.formatCenterLine(`FSSAI No: ${data.fssaiLicense}`, paperWidth);
-    }
+    printData += this.formatCenterLine(data.address || '', paperWidth);
+    printData += this.formatCenterLine(`GSTIN: ${data.gstin || ''}`, paperWidth);
+    printData += this.formatCenterLine(`FSSAI No: ${data.fssaiLicense || 'N/A'}`, paperWidth);
     if (data.phone) {
       printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
     }
@@ -430,12 +439,12 @@ class PrinterServiceImpl implements PrinterService {
     // Line separator
     printData += this.lineSeparator(paperWidth);
 
-    // Bill details — left-aligned
-    printData += this.formatLine(`Bill No: ${data.billNumber}`, paperWidth);
-    printData += this.formatLine(`Date: ${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
-    printData += this.formatLine(`Invoice No: ${data.invoiceNumber}`, paperWidth);
+    // Bill details — label left, value right (like CGST/SGST)
+    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
+    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    printData += this.formatLabelValueRow('Invoice No:', data.invoiceNumber, paperWidth);
     if (data.tableNumber) {
-      printData += this.formatLine(`Table: ${data.tableNumber}`, paperWidth);
+      printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
     }
     printData += '\n';
 
@@ -448,18 +457,15 @@ class PrinterServiceImpl implements PrinterService {
     printData += this.boldOff();
     printData += this.lineSeparator(paperWidth);
 
-    // Items — one row per product, one line gap between each item (like UI)
-    for (const item of data.items) {
-      const name = item.name;
+    // Items — one row per product, one line gap; first item gets leading space so first char prints
+    data.items.forEach((item, idx) => {
+      const name = idx === 0 ? ' ' + item.name : item.name;
       const qty = item.quantity.toString();
       const rate = item.rate.toFixed(2);
       const amount = item.amount.toFixed(2);
       printData += this.formatItemRow(name, qty, rate, amount, paperWidth);
-      if (item.gstPercentage) {
-        printData += this.formatLine(`  GST ${item.gstPercentage}%`, paperWidth);
-      }
       printData += '\n'; // one line gap between each item
-    }
+    });
 
     // Line separator
     printData += this.lineSeparator(paperWidth);
@@ -503,13 +509,13 @@ class PrinterServiceImpl implements PrinterService {
     printData += ESC + '@'; // Reset printer
     printData += this.leftAlign();
 
-    // Header — store name, address, phone: centered (equal left/right padding, like UI)
+    // Header — store name, address, phone: centered (with fallbacks)
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
-    printData += this.formatCenterLine(data.restaurantName.toUpperCase(), paperWidth);
+    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address, paperWidth);
+    printData += this.formatCenterLine(data.address || '', paperWidth);
     if (data.phone) {
       printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
     }
@@ -518,11 +524,11 @@ class PrinterServiceImpl implements PrinterService {
     // Line separator
     printData += this.lineSeparator(paperWidth);
 
-    // Bill details — left-aligned
-    printData += this.formatLine(`Bill No: ${data.billNumber}`, paperWidth);
-    printData += this.formatLine(`Date: ${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    // Bill details — label left, value right (like UI)
+    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
+    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
     if (data.tableNumber) {
-      printData += this.formatLine(`Table: ${data.tableNumber}`, paperWidth);
+      printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
     }
     printData += '\n';
 
@@ -535,16 +541,12 @@ class PrinterServiceImpl implements PrinterService {
     printData += this.boldOff();
     printData += this.lineSeparator(paperWidth);
 
-    // Items — one row per product, one line gap between each item (like UI)
-    for (const item of data.items) {
-      printData += this.formatItemRowNonGST(
-        item.name,
-        item.quantity.toString(),
-        item.amount.toFixed(2),
-        paperWidth
-      );
-      printData += '\n'; // one line gap between each item
-    }
+    // Items — one row per product, one line gap; first item leading space for first-char fix
+    data.items.forEach((item, idx) => {
+      const name = idx === 0 ? ' ' + item.name : item.name;
+      printData += this.formatItemRowNonGST(name, item.quantity.toString(), item.amount.toFixed(2), paperWidth);
+      printData += '\n';
+    });
 
     // Line separator
     printData += this.lineSeparator(paperWidth);
