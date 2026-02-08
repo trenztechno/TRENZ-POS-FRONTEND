@@ -1,4 +1,44 @@
 // src/services/printer.ts
+/**
+ * PRINTER CONFIGURATION — How it works (standalone or in any app)
+ * ================================================================
+ *
+ * 1. CONNECTION
+ *    - User pairs the thermal printer (e.g. XP-v320m) in Android Bluetooth settings.
+ *    - App stores printer MAC in business_settings (printer_mac_address).
+ *    - On print, we connect via Bluetooth SPP if not already connected, then send data.
+ *    - Optional: network print (printer_connection_type = 'network') sends the same bill
+ *      string to a relay URL (e.g. emulator / WiFi printer) via HTTP POST.
+ *
+ * 2. PAPER WIDTH
+ *    - Stored in business_settings (paper_size: '58mm' | '80mm'). Default 80mm.
+ *    - 58mm = 32 chars/line, 80mm = 48 chars/line. Layout (centered header, item columns,
+ *      label/value rows) is built in JS and sent as plain text + ESC/POS commands.
+ *
+ * 3. SENDING TO BLUETOOTH
+ *    - Native (XprinterModule.kt): printBillStart() clears buffer; printBillChunk(text)
+ *      appends; printBillFlush() encodes as US_ASCII and writes to the socket in 64-byte
+ *      chunks with 80ms delay so the printer buffer does not overflow.
+ *    - JS sends line-by-line: for each line we call Start → Chunk(line + '\n') → Flush,
+ *      then 50ms delay. This avoids the printer dropping the middle of the bill (items).
+ *    - All text is normalized with toAscii() (₹ → "Rs ", non-ASCII → '?') so the printer
+ *      never receives invalid bytes.
+ *
+ * 4. BILL LAYOUT (built here, no layout in native)
+ *    - Header: store name on its own line (so first chunk isn’t ESC-only), then address,
+ *      GSTIN, FSSAI, phone — all centered via space padding (formatCenterLine).
+ *    - Bill details: Bill No, Date, Invoice No — label left, value right (formatLabelValueRow).
+ *    - Items: one row per product (Item | Qty | Rate | Amount), one blank line between items.
+ *    - Totals: Subtotal, CGST, SGST, Total, Payment, Amount Paid — label left, value right.
+ *    - Footer: "GST @x% | ITC Applicable" and "Thank You! Visit Again" centered.
+ *    - After the bill, cutPaper() is called (ESC/POS cut command) from JS.
+ *
+ * 5. INDEPENDENT APP USAGE
+ *    - Use getBusinessSettings() for paper_size and printer_mac_address (or your own config).
+ *    - Call printBill(billData, isGST) with the same bill shape (GSTBillData / NonGSTBillData).
+ *    - For network/relay, the same built string is POSTed to your URL; for Bluetooth, it is
+ *      sent line-by-line via XprinterModule as above.
+ */
 import { NativeModules, Platform } from 'react-native';
 import type { GSTBillData } from '../components/templates/GSTBillTemplate';
 import type { NonGSTBillData } from '../components/templates/NonGSTBillTemplate';
@@ -57,106 +97,88 @@ class PrinterServiceImpl implements PrinterService {
   }
 
   /**
-   * Build GST bill print string (no native send)
+   * Build GST bill string (one source of truth for layout). Used for Bluetooth and network.
    */
-  private getGSTBillPrintData(data: GSTBillData, paperWidth: 58 | 80): string {
-    let printData = '';
-    printData += ESC + '@';
-    printData += this.leftAlign();
-    printData += this.setFontSize(2, 2);
-    printData += this.boldOn();
-    printData += '\n';
-    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
-    printData += this.boldOff();
-    printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address || '', paperWidth);
-    printData += this.formatCenterLine(`GSTIN: ${data.gstin || ''}`, paperWidth);
-    printData += this.formatCenterLine(`FSSAI No: ${data.fssaiLicense || 'N/A'}`, paperWidth);
-    if (data.phone) printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
-    printData += '\n';
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    printData += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
-    printData += this.formatLabelValueRow('Invoice No:', data.invoiceNumber, paperWidth);
-    if (data.tableNumber) printData += this.formatLine(`Table: ${data.tableNumber}`, paperWidth);
-    printData += '\n';
-    printData += this.lineSeparator(paperWidth);
-    printData += this.boldOn();
-    printData += this.formatItemHeaderRow(paperWidth);
-    printData += this.boldOff();
-    printData += this.lineSeparator(paperWidth);
+  private buildGSTBillContent(data: GSTBillData, paperWidth: 58 | 80): string {
+    let s = '';
+    s += ESC + '@' + this.leftAlign();
+    s += this.setFontSize(2, 2) + this.boldOn() + '\n';
+    s += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
+    s += this.boldOff() + this.setFontSize(1, 1);
+    s += this.formatCenterLine(data.address || '', paperWidth);
+    s += this.formatCenterLine(`GSTIN: ${data.gstin || ''}`, paperWidth);
+    s += this.formatCenterLine(`FSSAI No: ${data.fssaiLicense || 'N/A'}`, paperWidth);
+    if (data.phone) s += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
+    s += '\n' + this.lineSeparator(paperWidth);
+    s += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
+    s += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
+    s += this.formatLabelValueRow('Invoice No:', data.invoiceNumber, paperWidth);
+    if (data.tableNumber) s += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
+    s += '\n' + this.lineSeparator(paperWidth);
+    s += this.boldOn() + this.formatItemHeaderRow(paperWidth) + this.boldOff() + this.lineSeparator(paperWidth);
     data.items.forEach((item, idx) => {
       const name = idx === 0 ? ' ' + item.name : item.name;
-      printData += this.formatItemRow(name, item.quantity.toString(), item.rate.toFixed(2), item.amount.toFixed(2), paperWidth);
-      printData += '\n';
+      s += this.formatItemRow(name, item.quantity.toString(), item.rate.toFixed(2), item.amount.toFixed(2), paperWidth);
+      s += '\n';
     });
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
-    printData += this.formatAmountRow(`CGST (${data.cgstPercentage}%):`, data.cgstAmount, paperWidth);
-    printData += this.formatAmountRow(`SGST (${data.sgstPercentage}%):`, data.sgstAmount, paperWidth);
-    printData += '\n';
-    printData += this.boldOn();
-    printData += this.formatAmountRow('Total:', data.totalAmount, paperWidth);
-    printData += this.boldOff();
-    printData += '\n';
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatLine(`Payment Mode: ${data.paymentMode}`, paperWidth);
-    if (data.amountPaid) printData += this.formatAmountRow('Amount Paid:', data.amountPaid, paperWidth);
-    if (data.changeAmount && data.changeAmount > 0) printData += this.formatAmountRow('Change:', data.changeAmount, paperWidth);
-    printData += '\n';
+    s += this.lineSeparator(paperWidth);
+    s += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
+    s += this.formatAmountRow(`CGST (${data.cgstPercentage}%):`, data.cgstAmount, paperWidth);
+    s += this.formatAmountRow(`SGST (${data.sgstPercentage}%):`, data.sgstAmount, paperWidth);
+    s += '\n' + this.boldOn() + this.formatAmountRow('Total:', data.totalAmount, paperWidth) + this.boldOff() + '\n';
+    s += this.lineSeparator(paperWidth);
+    s += this.formatLine(`Payment Mode: ${data.paymentMode}`, paperWidth);
+    if (data.amountPaid) s += this.formatAmountRow('Amount Paid:', data.amountPaid, paperWidth);
+    if (data.changeAmount && data.changeAmount > 0) s += this.formatAmountRow('Change:', data.changeAmount, paperWidth);
+    s += '\n';
     const totalGstPct = (data.cgstPercentage || 0) + (data.sgstPercentage || 0);
-    printData += this.formatCenterLine(`GST @${totalGstPct}% | ITC Applicable`, paperWidth);
-    printData += this.formatCenterLine(data.footerNote || 'Thank You! Visit Again', paperWidth);
-    printData += '\n\n';
-    return printData;
+    s += this.formatCenterLine(`GST @${totalGstPct}% | ITC Applicable`, paperWidth);
+    s += this.formatCenterLine(data.footerNote || 'Thank You! Visit Again', paperWidth);
+    s += '\n\n';
+    return s;
   }
 
   /**
-   * Build Non-GST bill print string (no native send)
+   * Build Non-GST bill string (one source of truth). Used for Bluetooth and network.
    */
-  private getNonGSTBillPrintData(data: NonGSTBillData, paperWidth: 58 | 80): string {
-    let printData = '';
-    printData += ESC + '@';
-    printData += this.leftAlign();
-    printData += this.setFontSize(2, 2);
-    printData += this.boldOn();
-    printData += '\n';
-    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
-    printData += this.boldOff();
-    printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address || '', paperWidth);
-    if (data.phone) printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
-    printData += '\n';
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    printData += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
-    if (data.tableNumber) printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
-    printData += '\n';
-    printData += this.lineSeparator(paperWidth);
-    printData += this.boldOn();
-    printData += this.formatItemHeaderRowNonGST(paperWidth);
-    printData += this.boldOff();
-    printData += this.lineSeparator(paperWidth);
+  private buildNonGSTBillContent(data: NonGSTBillData, paperWidth: 58 | 80): string {
+    let s = '';
+    s += ESC + '@' + this.leftAlign();
+    s += this.setFontSize(2, 2) + this.boldOn() + '\n';
+    s += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
+    s += this.boldOff() + this.setFontSize(1, 1);
+    s += this.formatCenterLine(data.address || '', paperWidth);
+    if (data.phone) s += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
+    s += '\n' + this.lineSeparator(paperWidth);
+    s += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
+    s += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
+    if (data.tableNumber) s += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
+    s += '\n' + this.lineSeparator(paperWidth);
+    s += this.boldOn() + this.formatItemHeaderRowNonGST(paperWidth) + this.boldOff() + this.lineSeparator(paperWidth);
     data.items.forEach((item, idx) => {
       const name = idx === 0 ? ' ' + item.name : item.name;
-      printData += this.formatItemRowNonGST(name, item.quantity.toString(), item.amount.toFixed(2), paperWidth);
-      printData += '\n';
+      s += this.formatItemRowNonGST(name, item.quantity.toString(), item.amount.toFixed(2), paperWidth);
+      s += '\n';
     });
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
-    printData += '\n';
-    printData += this.boldOn();
-    printData += this.formatAmountRow('Total:', data.totalAmount, paperWidth);
-    printData += this.boldOff();
-    printData += '\n';
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatLine(`Payment Mode: ${data.paymentMode}`, paperWidth);
-    if (data.amountPaid) printData += this.formatAmountRow('Amount Paid:', data.amountPaid, paperWidth);
-    if (data.changeAmount && data.changeAmount > 0) printData += this.formatAmountRow('Change:', data.changeAmount, paperWidth);
-    printData += '\n';
-    printData += this.formatCenterLine(data.footerNote || 'Thank You! Visit Again', paperWidth);
-    printData += '\n\n';
-    return printData;
+    s += this.lineSeparator(paperWidth);
+    s += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
+    s += '\n' + this.boldOn() + this.formatAmountRow('Total:', data.totalAmount, paperWidth) + this.boldOff() + '\n';
+    s += this.lineSeparator(paperWidth);
+    s += this.formatLine(`Payment Mode: ${data.paymentMode}`, paperWidth);
+    if (data.amountPaid) s += this.formatAmountRow('Amount Paid:', data.amountPaid, paperWidth);
+    if (data.changeAmount && data.changeAmount > 0) s += this.formatAmountRow('Change:', data.changeAmount, paperWidth);
+    s += '\n';
+    s += this.formatCenterLine(data.footerNote || 'Thank You! Visit Again', paperWidth);
+    s += '\n\n';
+    return s;
+  }
+
+  private getGSTBillPrintData(data: GSTBillData, paperWidth: 58 | 80): string {
+    return this.buildGSTBillContent(data, paperWidth);
+  }
+
+  private getNonGSTBillPrintData(data: NonGSTBillData, paperWidth: 58 | 80): string {
+    return this.buildNonGSTBillContent(data, paperWidth);
   }
 
   /**
@@ -419,171 +441,12 @@ class PrinterServiceImpl implements PrinterService {
     }
   }
 
-  /**
-   * Print GST Bill
-   */
   private async printGSTBill(data: GSTBillData, paperWidth: 58 | 80): Promise<void> {
-    let printData = '';
-    
-    // Initialize printer
-    printData += ESC + '@'; // Reset printer
-    printData += this.leftAlign();
-
-    // Header — store name on its own line (no ESC in that chunk) so printer doesn't drop it
-    printData += this.setFontSize(2, 2);
-    printData += this.boldOn();
-    printData += '\n';
-    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
-    printData += this.boldOff();
-    printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address || '', paperWidth);
-    printData += this.formatCenterLine(`GSTIN: ${data.gstin || ''}`, paperWidth);
-    printData += this.formatCenterLine(`FSSAI No: ${data.fssaiLicense || 'N/A'}`, paperWidth);
-    if (data.phone) {
-      printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
-    }
-    printData += '\n';
-
-    // Line separator
-    printData += this.lineSeparator(paperWidth);
-
-    // Bill details — label left, value right (like CGST/SGST)
-    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    const dateStr = data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : '');
-    printData += this.formatLabelValueRow('Date:', dateStr, paperWidth);
-    printData += this.formatLabelValueRow('Invoice No:', data.invoiceNumber, paperWidth);
-    if (data.tableNumber) {
-      printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
-    }
-    printData += '\n';
-
-    // Line separator
-    printData += this.lineSeparator(paperWidth);
-
-    // Items Header (Item | Qty | Rate | Amount)
-    printData += this.boldOn();
-    printData += this.formatItemHeaderRow(paperWidth);
-    printData += this.boldOff();
-    printData += this.lineSeparator(paperWidth);
-
-    // Items — one row per product, one line gap; first item gets leading space so first char prints
-    data.items.forEach((item, idx) => {
-      const name = idx === 0 ? ' ' + item.name : item.name;
-      const qty = item.quantity.toString();
-      const rate = item.rate.toFixed(2);
-      const amount = item.amount.toFixed(2);
-      printData += this.formatItemRow(name, qty, rate, amount, paperWidth);
-      printData += '\n'; // one line gap between each item
-    });
-
-    // Line separator
-    printData += this.lineSeparator(paperWidth);
-    
-    // Amounts
-    printData += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
-    printData += this.formatAmountRow(`CGST (${data.cgstPercentage}%):`, data.cgstAmount, paperWidth);
-    printData += this.formatAmountRow(`SGST (${data.sgstPercentage}%):`, data.sgstAmount, paperWidth);
-    printData += '\n';
-    printData += this.boldOn();
-    printData += this.formatAmountRow('Total:', data.totalAmount, paperWidth);
-    printData += this.boldOff();
-    printData += '\n';
-    
-    // Payment Details
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatLine(`Payment Mode: ${data.paymentMode}`, paperWidth);
-    if (data.amountPaid) {
-      printData += this.formatAmountRow('Amount Paid:', data.amountPaid, paperWidth);
-    }
-    if (data.changeAmount && data.changeAmount > 0) {
-      printData += this.formatAmountRow('Change:', data.changeAmount, paperWidth);
-    }
-    printData += '\n';
-    
-    // Footer — GST line and Thank You centered (equal left/right padding, like UI)
-    const totalGstPct = (data.cgstPercentage || 0) + (data.sgstPercentage || 0);
-    printData += this.formatCenterLine(`GST @${totalGstPct}% | ITC Applicable`, paperWidth);
-    printData += this.formatCenterLine(data.footerNote || 'Thank You! Visit Again', paperWidth);
-    printData += '\n\n';
-    await this.sendToBluetooth(printData);
+    await this.sendToBluetooth(this.buildGSTBillContent(data, paperWidth));
   }
 
-  /**
-   * Print Non-GST Bill
-   */
   private async printNonGSTBill(data: NonGSTBillData, paperWidth: 58 | 80): Promise<void> {
-    let printData = '';
-
-    // Initialize printer
-    printData += ESC + '@'; // Reset printer
-    printData += this.leftAlign();
-
-    // Header — store name on its own line (no ESC in that chunk) so printer doesn't drop it
-    printData += this.setFontSize(2, 2);
-    printData += this.boldOn();
-    printData += '\n';
-    printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
-    printData += this.boldOff();
-    printData += this.setFontSize(1, 1);
-    printData += this.formatCenterLine(data.address || '', paperWidth);
-    if (data.phone) {
-      printData += this.formatCenterLine(`Ph: ${data.phone}`, paperWidth);
-    }
-    printData += '\n';
-
-    // Line separator
-    printData += this.lineSeparator(paperWidth);
-
-    // Bill details — label left, value right (like UI)
-    printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    printData += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
-    if (data.tableNumber) {
-      printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
-    }
-    printData += '\n';
-
-    // Line separator
-    printData += this.lineSeparator(paperWidth);
-
-    // Items Header (Item | Qty | Amount)
-    printData += this.boldOn();
-    printData += this.formatItemHeaderRowNonGST(paperWidth);
-    printData += this.boldOff();
-    printData += this.lineSeparator(paperWidth);
-
-    // Items — one row per product, one line gap; first item leading space for first-char fix
-    data.items.forEach((item, idx) => {
-      const name = idx === 0 ? ' ' + item.name : item.name;
-      printData += this.formatItemRowNonGST(name, item.quantity.toString(), item.amount.toFixed(2), paperWidth);
-      printData += '\n';
-    });
-
-    // Line separator
-    printData += this.lineSeparator(paperWidth);
-    
-    // Amounts
-    printData += this.formatAmountRow('Subtotal:', data.subtotal, paperWidth);
-    printData += '\n';
-    printData += this.boldOn();
-    printData += this.formatAmountRow('Total:', data.totalAmount, paperWidth);
-    printData += this.boldOff();
-    printData += '\n';
-    
-    // Payment Details
-    printData += this.lineSeparator(paperWidth);
-    printData += this.formatLine(`Payment Mode: ${data.paymentMode}`, paperWidth);
-    if (data.amountPaid) {
-      printData += this.formatAmountRow('Amount Paid:', data.amountPaid, paperWidth);
-    }
-    if (data.changeAmount && data.changeAmount > 0) {
-      printData += this.formatAmountRow('Change:', data.changeAmount, paperWidth);
-    }
-    printData += '\n';
-    
-    // Footer — centered (equal left/right padding, like UI)
-    printData += this.formatCenterLine(data.footerNote || 'Thank You! Visit Again', paperWidth);
-    printData += '\n\n';
-    await this.sendToBluetooth(printData);
+    await this.sendToBluetooth(this.buildNonGSTBillContent(data, paperWidth));
   }
 
   /**
@@ -648,8 +511,7 @@ class PrinterServiceImpl implements PrinterService {
         }
       }
       if (!connected) throw new Error('Printer not connected. Go to Printer Setup, select XP-v320m and tap Connect.');
-      const printData = this.getTestPrintData();
-      await XprinterModule.printText(printData);
+      await this.sendToBluetooth(this.getTestPrintData());
       await this.cutPaper();
       return true;
     } catch (error: any) {
