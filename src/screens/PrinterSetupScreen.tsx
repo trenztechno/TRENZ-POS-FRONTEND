@@ -36,7 +36,7 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
   const [bluetoothDevices, setBluetoothDevices] = useState<BluetoothDevice[]>([]);
   const [selectedDevice, setSelectedDevice] = useState<BluetoothDevice | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('disconnected');
-  const [selectedPaperSize, setSelectedPaperSize] = useState<PaperSize>('58mm');
+  const [selectedPaperSize, setSelectedPaperSize] = useState<PaperSize>('80mm');
   const [autoPrint, setAutoPrint] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDevices, setIsLoadingDevices] = useState(false);
@@ -228,10 +228,16 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
   const handleApplyPaperSize = async () => {
     try {
       setIsSavingPaperSize(true);
-      
+
       await saveBusinessSettings({
         paper_size: selectedPaperSize,
       });
+
+      // Refetch so UI shows what was actually saved (fixes "still showing 58mm")
+      const settings = await getBusinessSettings();
+      if (settings?.paper_size) {
+        setSelectedPaperSize(settings.paper_size as PaperSize);
+      }
 
       Alert.alert('Success', 'Paper size updated successfully!');
     } catch (error) {

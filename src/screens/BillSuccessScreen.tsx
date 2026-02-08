@@ -229,7 +229,7 @@ const BillSuccessScreen: React.FC<BillSuccessScreenProps> = ({ navigation, route
       
       // Get paper width from settings
       const settings = await getBusinessSettings();
-      const paperWidthSetting: 58 | 80 = (settings?.paper_size === '80mm' ? 80 : 58) as 58 | 80;
+      const paperWidthSetting: 58 | 80 = (settings?.paper_size === '58mm' ? 58 : 80) as 58 | 80;
       
       // Print the bill
       await PrinterService.printBill(formattedBill, billData.billing_mode === 'gst');

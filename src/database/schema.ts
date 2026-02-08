@@ -313,7 +313,7 @@ const createTables = async () => {
       payment_method INTEGER DEFAULT 1,
       business_code TEXT,
       logo_path TEXT,
-      paper_size TEXT DEFAULT '58mm',
+      paper_size TEXT DEFAULT '80mm',
       auto_print INTEGER DEFAULT 0,
       printer_connected INTEGER DEFAULT 0,
       last_restore_date TEXT,

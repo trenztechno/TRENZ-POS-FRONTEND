@@ -307,22 +307,24 @@ class PrinterServiceImpl implements PrinterService {
   }
 
   /**
-   * Format text to fit paper width (no padding - keeps total length down so full bill prints).
+   * Format line to paper width: left-aligned (as in UI). Pad on right only.
+   * 58mm = 32 chars, 80mm = 48 chars.
    */
   private formatLine(text: string, paperWidth: 58 | 80): string {
     const maxChars = paperWidth === 58 ? 32 : 48;
-    if (text.length <= maxChars) return text + '\n';
-    return text.substring(0, maxChars - 3) + '...\n';
+    const line = text.length <= maxChars ? text : text.substring(0, maxChars - 3) + '...';
+    return line + ' '.repeat(Math.max(0, maxChars - line.length)) + '\n';
   }
 
   /**
-   * Format amount row; use "Rs " (not ₹) so line length matches printer and "Amount Paid" doesn't wrap.
+   * Format amount row like UI: label left-aligned, amount right-aligned (spaces between).
    */
   private formatAmountRow(label: string, amount: number, paperWidth: 58 | 80): string {
     const maxChars = paperWidth === 58 ? 32 : 48;
     const amountText = `Rs ${amount.toFixed(2)}`;
-    const spaces = maxChars - label.length - amountText.length;
-    return label + ' '.repeat(Math.max(1, spaces)) + amountText + '\n';
+    const spaces = Math.max(1, maxChars - label.length - amountText.length);
+    const line = label + ' '.repeat(spaces) + amountText;
+    return line.length <= maxChars ? line + ' '.repeat(maxChars - line.length) + '\n' : line.substring(0, maxChars) + '\n';
   }
 
   /** Strip to ASCII so printer never gets garbage (no encoding/random chars). */
@@ -330,14 +332,13 @@ class PrinterServiceImpl implements PrinterService {
     return s.replace(/₹/g, 'Rs ').replace(/[^\x00-\x7F]/g, '?');
   }
 
-  /** Delay helper so printer can process each line (avoids buffer dropping middle). */
   private delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
   }
 
   /**
-   * Send bill line-by-line: each line flushed separately so printer buffer never overflows.
-   * (One big stream was losing Bill No, items, Sub Total, Payment – only start + CGST/SGST/Total + footer printed.)
+   * Send line-by-line so printer buffer doesn't drop the middle (items). No leading space
+   * (that caused continuous print). Header is already centered in build; rest left-aligned.
    */
   private async sendToBluetooth(printData: string): Promise<void> {
     const safe = this.toAscii(printData);
@@ -349,7 +350,7 @@ class PrinterServiceImpl implements PrinterService {
       await XprinterModule.printBillStart();
       await XprinterModule.printBillChunk(withNewline);
       await XprinterModule.printBillFlush();
-      await this.delay(60);
+      await this.delay(50);
     }
   }
 
@@ -361,7 +362,7 @@ class PrinterServiceImpl implements PrinterService {
     
     // Initialize printer
     printData += ESC + '@'; // Reset printer
-    
+
     // Business Header (Centered, Bold, Large)
     printData += this.centerText();
     printData += this.setFontSize(2, 2);
@@ -445,8 +446,10 @@ class PrinterServiceImpl implements PrinterService {
     }
     printData += '\n';
     
-    // Footer
+    // Footer (match app: GST line then Thank You)
     printData += this.centerText();
+    const totalGstPct = (data.cgstPercentage || 0) + (data.sgstPercentage || 0);
+    printData += this.formatLine(`GST @${totalGstPct}% | ITC Applicable`, paperWidth);
     if (data.footerNote) {
       printData += this.formatLine(data.footerNote, paperWidth);
     }
@@ -549,7 +552,7 @@ class PrinterServiceImpl implements PrinterService {
   async printBill(billData: GSTBillData | NonGSTBillData, isGST: boolean): Promise<boolean> {
     try {
       const settings = await getBusinessSettings();
-      const paperWidth: 58 | 80 = (settings?.paper_size === '80mm' ? 80 : 58) as 58 | 80;
+      const paperWidth: 58 | 80 = (settings?.paper_size === '58mm' ? 58 : 80) as 58 | 80;
 
       const network = await this.isNetworkPrintMode();
       if (network) {

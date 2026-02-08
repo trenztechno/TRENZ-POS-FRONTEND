@@ -881,7 +881,7 @@ export const saveBusinessSettings = async (data: {
           welcome_screen_view_count, last_welcome_view_date, first_welcome_view_date,
           onboarding_path, onboarding_started_date,
           is_synced, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           data.business_name || null,
           data.business_address || null,
@@ -909,7 +909,7 @@ export const saveBusinessSettings = async (data: {
           data.payment_method !== undefined ? data.payment_method : 1,
           data.business_code || null,
           data.logo_path !== undefined ? data.logo_path : null,
-          data.paper_size || '58mm',
+          data.paper_size || '80mm',
           data.auto_print !== undefined ? data.auto_print : 0,
           data.printer_connected !== undefined ? data.printer_connected : 0,
           data.last_restore_date || null,
