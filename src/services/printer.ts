@@ -65,6 +65,7 @@ class PrinterServiceImpl implements PrinterService {
     printData += this.leftAlign();
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
+    printData += '\n';
     printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
@@ -75,7 +76,7 @@ class PrinterServiceImpl implements PrinterService {
     printData += '\n';
     printData += this.lineSeparator(paperWidth);
     printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    printData += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
     printData += this.formatLabelValueRow('Invoice No:', data.invoiceNumber, paperWidth);
     if (data.tableNumber) printData += this.formatLine(`Table: ${data.tableNumber}`, paperWidth);
     printData += '\n';
@@ -119,6 +120,7 @@ class PrinterServiceImpl implements PrinterService {
     printData += this.leftAlign();
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
+    printData += '\n';
     printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
@@ -127,7 +129,7 @@ class PrinterServiceImpl implements PrinterService {
     printData += '\n';
     printData += this.lineSeparator(paperWidth);
     printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    printData += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
     if (data.tableNumber) printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
     printData += '\n';
     printData += this.lineSeparator(paperWidth);
@@ -391,6 +393,11 @@ class PrinterServiceImpl implements PrinterService {
     return s.replace(/₹/g, 'Rs ').replace(/[^\x00-\x7F]/g, '?');
   }
 
+  /** Time string to printer-safe ASCII (e.g. replace Unicode space with normal space so no "6:09?pm"). */
+  private timeToAscii(t: string): string {
+    return t.replace(/[^\x00-\x7F]/g, ' ');
+  }
+
   private delay(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -422,9 +429,10 @@ class PrinterServiceImpl implements PrinterService {
     printData += ESC + '@'; // Reset printer
     printData += this.leftAlign();
 
-    // Header — store name, GSTIN, FSSAI: centered (always print all with fallbacks so they show)
+    // Header — store name on its own line (no ESC in that chunk) so printer doesn't drop it
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
+    printData += '\n';
     printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
@@ -441,7 +449,8 @@ class PrinterServiceImpl implements PrinterService {
 
     // Bill details — label left, value right (like CGST/SGST)
     printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    const dateStr = data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : '');
+    printData += this.formatLabelValueRow('Date:', dateStr, paperWidth);
     printData += this.formatLabelValueRow('Invoice No:', data.invoiceNumber, paperWidth);
     if (data.tableNumber) {
       printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
@@ -509,9 +518,10 @@ class PrinterServiceImpl implements PrinterService {
     printData += ESC + '@'; // Reset printer
     printData += this.leftAlign();
 
-    // Header — store name, address, phone: centered (with fallbacks)
+    // Header — store name on its own line (no ESC in that chunk) so printer doesn't drop it
     printData += this.setFontSize(2, 2);
     printData += this.boldOn();
+    printData += '\n';
     printData += this.formatCenterLine((data.restaurantName || 'Store').toUpperCase(), paperWidth);
     printData += this.boldOff();
     printData += this.setFontSize(1, 1);
@@ -526,7 +536,7 @@ class PrinterServiceImpl implements PrinterService {
 
     // Bill details — label left, value right (like UI)
     printData += this.formatLabelValueRow('Bill No:', data.billNumber, paperWidth);
-    printData += this.formatLabelValueRow('Date:', `${data.billDate}${data.billTime ? ` | ${data.billTime}` : ''}`, paperWidth);
+    printData += this.formatLabelValueRow('Date:', data.billDate + (data.billTime ? ` | ${this.timeToAscii(data.billTime)}` : ''), paperWidth);
     if (data.tableNumber) {
       printData += this.formatLabelValueRow('Table:', data.tableNumber, paperWidth);
     }
