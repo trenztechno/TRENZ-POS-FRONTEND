@@ -300,6 +300,7 @@ const createTables = async () => {
       bill_footer_note TEXT,
       printer_name TEXT,
       printer_type TEXT,
+      printer_mac_address TEXT,
       device_id TEXT,
       admin_pin TEXT,
       gst_type TEXT DEFAULT 'Inclusive',
@@ -312,7 +313,7 @@ const createTables = async () => {
       payment_method INTEGER DEFAULT 1,
       business_code TEXT,
       logo_path TEXT,
-      paper_size TEXT DEFAULT '58mm',
+      paper_size TEXT DEFAULT '80mm',
       auto_print INTEGER DEFAULT 0,
       printer_connected INTEGER DEFAULT 0,
       last_restore_date TEXT,
@@ -438,6 +439,9 @@ const runMigrations = async () => {
     addColumnIfNotExists('business_settings', 'item_level_override', 'INTEGER DEFAULT 1');
     addColumnIfNotExists('business_settings', 'rounding_rule', "TEXT DEFAULT 'nearest'");
     addColumnIfNotExists('business_settings', 'invoice_format', "TEXT DEFAULT 'classic'");
+    addColumnIfNotExists('business_settings', 'printer_mac_address', 'TEXT');
+    addColumnIfNotExists('business_settings', 'printer_connection_type', "TEXT DEFAULT 'bluetooth'");
+    addColumnIfNotExists('business_settings', 'printer_network_url', 'TEXT');
 
     console.log('✅ Database migrations completed successfully');
   } catch (error) {
