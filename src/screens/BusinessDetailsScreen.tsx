@@ -30,6 +30,8 @@ interface BusinessData {
   fssaiNo: string;
   phoneNumber: string;
   emailId: string;
+  sacCode: string;
+  sacGstPercentage: string;
 }
 
 const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigation }) => {
@@ -40,6 +42,8 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
     fssaiNo: '',
     phoneNumber: '',
     emailId: '',
+    sacCode: '',
+    sacGstPercentage: '',
   });
 
   const [isLoading, setIsLoading] = useState(true);
@@ -83,6 +87,8 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
           fssaiNo: vendorProfile.fssai_license || '',
           phoneNumber: vendorProfile.phone || '',
           emailId: vendorProfile.email || '',
+          sacCode: vendorProfile.sac_code || '',
+          sacGstPercentage: vendorProfile.sac_gst_percentage ? String(vendorProfile.sac_gst_percentage) : '',
         });
       } else {
         // Fallback to user data only
@@ -95,6 +101,8 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
           fssaiNo: userData?.fssai_license || '',
           phoneNumber: userData?.phone || '',
           emailId: '',
+          sacCode: '',
+          sacGstPercentage: '',
         });
       }
     } catch (error) {
@@ -155,6 +163,21 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
       }
     }
 
+    // Validate SAC code if provided
+    if (businessData.sacCode.trim()) {
+      // SAC code should be 6 digits
+      if (businessData.sacCode.trim().length !== 6 || !/^\d+$/.test(businessData.sacCode.trim())) {
+        Alert.alert('Invalid SAC Code', 'SAC code must be 6 digits (e.g., 996331 for restaurant service).');
+        return;
+      }
+
+      // If SAC code is provided, GST percentage is required
+      if (!businessData.sacGstPercentage.trim()) {
+        Alert.alert('Missing GST Percentage', 'Please select GST percentage for the SAC code.');
+        return;
+      }
+    }
+
     setConfirmModalVisible(true);
   };
 
@@ -171,6 +194,8 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
         fssai_license: businessData.fssaiNo.trim(),
         phone: businessData.phoneNumber.trim(),
         email: businessData.emailId.trim(),
+        sac_code: businessData.sacCode.trim(),
+        sac_gst_percentage: businessData.sacGstPercentage.trim() ? parseFloat(businessData.sacGstPercentage.trim()) : undefined,
       });
 
       // Local storage sync removed for online-only mode
@@ -195,6 +220,42 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
 
   const handleCancelConfirm = () => {
     setConfirmModalVisible(false);
+  };
+
+  // Helper function to get GST percentage suggestion based on SAC code
+  const getSuggestedGstPercentage = (sacCode: string): string => {
+    const code = sacCode.trim();
+    if (code === '996331') {
+      return '5.00'; // Restaurant service (dine-in/takeaway) - 5% GST
+    } else if (code === '996334') {
+      return '5.00'; // Outdoor catering - commonly 5% GST (can be 18% too)
+    }
+    return '';
+  };
+
+  // Helper function to get available GST percentages based on SAC code
+  const getAvailableGstPercentages = (sacCode: string): string[] => {
+    const code = sacCode.trim();
+    if (code === '996331') {
+      return ['5.00']; // Restaurant service - only 5% GST
+    } else if (code === '996334') {
+      return ['5.00', '18.00']; // Catering service - 5% or 18% GST (vendor chooses)
+    }
+    return ['5.00', '18.00']; // Other codes - allow both options
+  };
+
+  // Handle SAC code change with auto-suggestion
+  const handleSacCodeChange = (text: string) => {
+    const numericText = text.replace(/[^0-9]/g, '');
+    setBusinessData({ ...businessData, sacCode: numericText });
+
+    // Auto-suggest GST percentage for known SAC codes
+    if (numericText.length === 6) {
+      const suggested = getSuggestedGstPercentage(numericText);
+      if (suggested && !businessData.sacGstPercentage) {
+        setBusinessData({ ...businessData, sacCode: numericText, sacGstPercentage: suggested });
+      }
+    }
   };
 
   if (isLoading) {
@@ -369,6 +430,69 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
               editable={!isSaving}
             />
           </View>
+
+          {/* SAC Code */}
+          <View style={styles.fieldContainer}>
+            <View style={styles.labelRow}>
+              <Text style={styles.label}>SAC Code</Text>
+              <Text style={styles.optional}>(Optional - Service Tax)</Text>
+            </View>
+            <TextInput
+              style={styles.input}
+              value={businessData.sacCode}
+              onChangeText={handleSacCodeChange}
+              placeholder="Enter SAC code (e.g., 996331 for restaurant)"
+              placeholderTextColor="#999999"
+              keyboardType="numeric"
+              maxLength={6}
+              editable={!isSaving}
+            />
+            <Text style={styles.helperText}>
+              Common codes: 996331 (Restaurant), 996334 (Catering)
+            </Text>
+          </View>
+
+          {/* SAC GST Percentage */}
+          {businessData.sacCode.trim().length === 6 && (
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>GST Percentage for SAC</Text>
+              <View style={styles.gstButtonsContainer}>
+                {getAvailableGstPercentages(businessData.sacCode).map((percentage) => (
+                  <TouchableOpacity
+                    key={percentage}
+                    style={[
+                      styles.gstButton,
+                      businessData.sacGstPercentage === percentage && styles.gstButtonSelected,
+                    ]}
+                    onPress={() =>
+                      setBusinessData({ ...businessData, sacGstPercentage: percentage })
+                    }
+                    disabled={isSaving}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.gstButtonText,
+                        businessData.sacGstPercentage === percentage && styles.gstButtonTextSelected,
+                      ]}
+                    >
+                      {percentage}%
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.helperText}>
+                {businessData.sacCode === '996331'
+                  ? 'Restaurant service: 5% GST (fixed rate)'
+                  : businessData.sacCode === '996334'
+                  ? 'Catering service: Select 5% or 18% GST based on your service type'
+                  : 'Select GST percentage for your service'}
+              </Text>
+              <Text style={styles.warningText}>
+                ⚠️ When SAC code is set, all services (item-type) will use this GST rate.
+              </Text>
+            </View>
+          )}
         </Animated.View>
 
         {/* Apply Button */}
@@ -422,6 +546,11 @@ const BusinessDetailsScreen: React.FC<BusinessDetailsScreenProps> = ({ navigatio
               <Text style={styles.previewText}>{businessData.phoneNumber}</Text>
               {businessData.emailId ? (
                 <Text style={styles.previewText}>{businessData.emailId}</Text>
+              ) : null}
+              {businessData.sacCode ? (
+                <Text style={styles.previewText}>
+                  SAC Code: {businessData.sacCode} ({businessData.sacGstPercentage}% GST)
+                </Text>
               ) : null}
             </View>
 
@@ -642,6 +771,47 @@ const styles = StyleSheet.create({
     color: '#666666',
     letterSpacing: -0.31,
     lineHeight: 24,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#999999',
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  warningText: {
+    fontSize: 12,
+    color: '#FF9500',
+    marginTop: 8,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  gstButtonsContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  gstButton: {
+    flex: 1,
+    height: 48,
+    borderWidth: 1.81,
+    borderColor: '#E0E0E0',
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  gstButtonSelected: {
+    borderColor: '#C62828',
+    backgroundColor: '#FFF5F5',
+  },
+  gstButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666666',
+    letterSpacing: -0.31,
+  },
+  gstButtonTextSelected: {
+    color: '#C62828',
   },
 });
 

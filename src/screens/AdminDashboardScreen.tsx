@@ -26,6 +26,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
     address: 'Loading...',
     phone: 'Loading...',
     email: 'Loading...',
+    vendorId: 'Loading...',
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -39,6 +40,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
   const card4Anim = useRef(new Animated.Value(0)).current;
   const card5Anim = useRef(new Animated.Value(0)).current;
   const card6Anim = useRef(new Animated.Value(0)).current;
+  const card7Anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadBusinessData();
@@ -92,6 +94,11 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           duration: 300,
           useNativeDriver: true,
         }),
+        Animated.timing(card7Anim, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
       ]).start();
     }
   }, [isLoading]);
@@ -106,6 +113,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
         address: profile.address || 'Not set',
         phone: profile.phone || 'Not set',
         email: profile.email || 'Not set',
+        vendorId: profile.vendor_id || 'Not set',
       });
     } catch (error) {
       console.error('Failed to load business data:', error);
@@ -116,6 +124,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
         address: 'Not set',
         phone: 'Not set',
         email: 'Not set',
+        vendorId: 'Not set',
       });
     } finally {
       setIsLoading(false);
@@ -132,6 +141,10 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
 
   const handleBillFormat = () => {
     navigation.navigate('BillFormat');
+  };
+
+  const handleBusinessDetails = () => {
+    navigation.navigate('BusinessDetails');
   };
 
   const handleLogout = () => {
@@ -224,6 +237,11 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           <Text style={styles.sectionTitle}>Business Information</Text>
 
           <View style={styles.infoItem}>
+            <Text style={styles.infoLabel}>Trenz ID</Text>
+            <Text style={styles.infoValue}>{businessInfo.vendorId}</Text>
+          </View>
+
+          <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Business Name</Text>
             <Text style={styles.infoValue}>{businessInfo.name}</Text>
           </View>
@@ -297,8 +315,41 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           </TouchableOpacity>
         </Animated.View>
 
-        {/* 2. GST Settings */}
+        {/* 2. Business Details */}
         <Animated.View
+          style={[
+            styles.settingCard,
+            {
+              opacity: card7Anim,
+              transform: [
+                {
+                  translateX: card7Anim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <TouchableOpacity
+            style={styles.cardContent}
+            activeOpacity={0.7}
+            onPress={handleBusinessDetails}
+          >
+            <View style={[styles.iconContainer, { backgroundColor: '#FFF9E6' }]}>
+              <Text style={styles.iconText}>🏪</Text>
+            </View>
+            <View style={styles.cardText}>
+              <Text style={styles.cardTitle}>Business Details</Text>
+              <Text style={styles.cardSubtitle}>Edit shop name, address, and contact info</Text>
+            </View>
+            <Text style={styles.arrow}>→</Text>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* 3. GST Settings - HIDDEN (Keeping for future use) */}
+        {/* <Animated.View
           style={[
             styles.settingCard,
             {
@@ -328,9 +379,9 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
             </View>
             <Text style={styles.arrow}>→</Text>
           </TouchableOpacity>
-        </Animated.View>
+        </Animated.View> */}
 
-        {/* 3. Bill Format */}
+        {/* 4. Bill Format */}
         <Animated.View
           style={[
             styles.settingCard,
@@ -363,7 +414,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           </TouchableOpacity>
         </Animated.View>
 
-        {/* 4. Printer Setup */}
+        {/* 5. Printer Setup */}
         <Animated.View
           style={[
             styles.settingCard,
@@ -396,7 +447,7 @@ const AdminDashboardScreen: React.FC<AdminDashboardScreenProps> = ({ navigation 
           </TouchableOpacity>
         </Animated.View>
 
-        {/* 5. Add People */}
+        {/* 6. Add People */}
         <Animated.View
           style={[
             styles.settingCard,

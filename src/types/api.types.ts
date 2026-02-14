@@ -6,6 +6,7 @@ export type BillingMode = 'gst' | 'non_gst';
 export type PaymentMode = 'cash' | 'upi' | 'card' | 'credit' | 'other';
 export type PriceType = 'exclusive' | 'inclusive';
 export type VegNonVeg = 'veg' | 'nonveg';
+export type ItemType = 'goods' | 'service';
 
 export interface APIResponse<T> {
   data: T;
@@ -19,6 +20,7 @@ export interface VendorProfile {
   id: string;
   username?: string;
   email?: string;
+  vendor_id?: string;       // Trenz ID - unique vendor identifier
   business_name: string;
   address: string;
   phone: string;
@@ -31,6 +33,8 @@ export interface VendorProfile {
   last_bill_number?: number;
   cgst_percentage?: string | number;
   sgst_percentage?: string | number;
+  sac_code?: string;        // SAC (Service Accounting Code) for vendor-level GST
+  sac_gst_percentage?: string | number;  // GST percentage for SAC code
   is_approved?: boolean;
   created_at?: string;
   updated_at?: string;
@@ -109,13 +113,16 @@ export interface Item {
   price: number;
   mrp_price?: number;
   price_type: PriceType;
-  gst_percentage: number;
+  item_type?: ItemType;  // 'goods' or 'service' - NOT currently supported by backend
+  hsn_code?: string;  // Backend uses this field for BOTH HSN (goods) and SAC (service) codes
+  sac_code?: string;  // NOT currently supported by backend - use hsn_code instead
+  gst_percentage?: number;  // Legacy field name - backend uses hsn_gst_percentage
+  hsn_gst_percentage?: number | string;  // Backend's actual field name for GST percentage
   veg_nonveg?: VegNonVeg;
   additional_discount?: number;
   discount_percentage?: number;  // Alias for additional_discount (percentage-based)
   stock_quantity: number;
   sku?: string;
-  hsn_code?: string;  // HSN code for GST
   barcode?: string;
   is_active: boolean;
   sort_order: number;
@@ -136,7 +143,11 @@ export interface CreateItemRequest {
   price: number;
   mrp_price?: number;
   price_type?: PriceType;
-  gst_percentage?: number;
+  item_type?: ItemType;  // 'goods' or 'service' - NOT currently supported by backend
+  hsn_code?: string;  // Backend uses this for BOTH HSN (goods) and SAC (service) codes
+  sac_code?: string;  // NOT currently supported by backend - use hsn_code instead
+  gst_percentage?: number;  // Legacy field - backend uses hsn_gst_percentage
+  hsn_gst_percentage?: number | string;  // Backend's actual field name
   veg_nonveg?: VegNonVeg;
   additional_discount?: number;
   stock_quantity?: number;
@@ -152,7 +163,11 @@ export interface UpdateItemRequest {
   price?: number;
   mrp_price?: number;
   price_type?: PriceType;
-  gst_percentage?: number;
+  item_type?: ItemType;  // 'goods' or 'service' - NOT currently supported by backend
+  hsn_code?: string;  // Backend uses this for BOTH HSN (goods) and SAC (service) codes
+  sac_code?: string;  // NOT currently supported by backend - use hsn_code instead
+  gst_percentage?: number;  // Legacy field - backend uses hsn_gst_percentage
+  hsn_gst_percentage?: number | string;  // Backend's actual field name
   veg_nonveg?: VegNonVeg;
   additional_discount?: number;
   stock_quantity?: number;
@@ -510,6 +525,9 @@ export interface MenuItem {
   price: number;
   mrp_price?: number;
   price_type?: PriceType;
+  item_type?: ItemType;  // 'goods' or 'service'
+  hsn_code?: string;  // HSN code for goods
+  sac_code?: string;  // SAC code for services
   gst_percentage?: number;
   veg_nonveg?: VegNonVeg;
   additional_discount?: number;
@@ -523,7 +541,6 @@ export interface MenuItem {
   description?: string;
   stock_quantity?: number;
   sku?: string;
-  hsn_code?: string;  // HSN code for GST
   barcode?: string;
   is_active?: boolean;
   sort_order?: number;

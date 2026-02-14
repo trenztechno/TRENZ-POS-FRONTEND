@@ -29,26 +29,26 @@ interface BillFormatOption {
 }
 
 const BILL_FORMAT_OPTIONS: BillFormatOption[] = [
-  {
-    id: '1',
-    title: 'Business Details',
-    subtitle: 'Edit shop name, address, and contact details shown on the bill',
-    route: 'BusinessDetails',
-    multiline: true,
-    statusKey: 'business_name',
-  },
-  {
-    id: '2',
-    title: 'Invoice Format',
-    subtitle: 'Choose how the bill layout looks',
-    route: 'InvoiceFormat',
-  },
-  {
-    id: '3',
-    title: 'Invoice Structure',
-    subtitle: 'Configure bill content order and fields',
-    route: 'InvoiceStructure',
-  },
+  // {
+  //   id: '1',
+  //   title: 'Business Details',
+  //   subtitle: 'Edit shop name, address, and contact details shown on the bill',
+  //   route: 'BusinessDetails',
+  //   multiline: true,
+  //   statusKey: 'business_name',
+  // },
+  // {
+  //   id: '2',
+  //   title: 'Invoice Format',
+  //   subtitle: 'Choose how the bill layout looks',
+  //   route: 'InvoiceFormat',
+  // },
+  // {
+  //   id: '3',
+  //   title: 'Invoice Structure',
+  //   subtitle: 'Configure bill content order and fields',
+  //   route: 'InvoiceStructure',
+  // },
   {
     id: '4',
     title: 'Logo Upload',

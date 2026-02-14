@@ -17,8 +17,9 @@ import {
 import { launchCamera, launchImageLibrary, CameraOptions, ImageLibraryOptions } from 'react-native-image-picker';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
-import { RootStackParamList, MenuItem } from '../types/business.types';
+import { RootStackParamList, MenuItem, ItemType } from '../types/business.types';
 import API from '../services/api';
+import { getGSTRatesForCode, getCodeDescription } from '../utils/hsnSacCodes';
 
 type EditItemScreenProps = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'EditItem'>;
@@ -28,16 +29,49 @@ type EditItemScreenProps = {
 const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) => {
   const { item } = route.params;
 
+  // Detect item type from code pattern (since backend doesn't store item_type)
+  // SAC codes start with '996', HSN codes are 4-digit numbers (0000-9999)
+  const detectItemType = (): ItemType => {
+    if (item.hsn_code) {
+      // If code starts with '996', it's likely a SAC code (service)
+      if (item.hsn_code.startsWith('996')) {
+        return 'service';
+      }
+    }
+    // Default to goods
+    return 'goods';
+  };
+
+  const detectedType = detectItemType();
+
   // --- State Management (matching AddItemScreen) ---
   const [itemName, setItemName] = useState(item.name);
   const [sku, setSku] = useState(item.sku || '');
-  const [hsnCode, setHsnCode] = useState(item.hsn_code || '');
+  
+  // NEW: Item Type (Goods or Service)
+  const [itemType, setItemType] = useState<ItemType>(detectedType);
+  const [showItemTypeDropdown, setShowItemTypeDropdown] = useState(false);
+  
+  // HSN/SAC Codes - Backend only has hsn_code field for both
+  const [hsnCode, setHsnCode] = useState(
+    detectedType === 'goods' ? (item.hsn_code || '') : ''
+  );
+  const [sacCode, setSacCode] = useState(
+    detectedType === 'service' ? (item.hsn_code || '') : ''
+  );
+  const [codeDescription, setCodeDescription] = useState('');
+  
+  // GST Selection
+  const [availableGSTRates, setAvailableGSTRates] = useState<number[]>([]);
+  const [showGSTOptions, setShowGSTOptions] = useState(false);
 
   // Pricing State
   const [basePrice, setBasePrice] = useState(item.price.toString());
 
-  // Attributes
-  const [gstPercentage, setGstPercentage] = useState((item.gst_percentage || '').toString());
+  // Attributes - Backend uses hsn_gst_percentage instead of gst_percentage
+  const [gstPercentage, setGstPercentage] = useState(
+    ((item as any).hsn_gst_percentage || item.gst_percentage || '').toString()
+  );
   const [vegNonVeg, setVegNonVeg] = useState<'veg' | 'nonveg' | ''>(
     (item.veg_nonveg as 'veg' | 'nonveg') || ''
   );
@@ -79,6 +113,60 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
     ]).start();
   }, []);
 
+  // Handle code changes (HSN or SAC)
+  useEffect(() => {
+    const code = itemType === 'goods' ? hsnCode : sacCode;
+    if (code.trim()) {
+      const rates = getGSTRatesForCode(code.trim());
+      const description = getCodeDescription(code.trim());
+      
+      if (rates && rates.length > 0) {
+        setAvailableGSTRates(rates);
+        setCodeDescription(description || '');
+        
+        // If only one rate, auto-select it
+        if (rates.length === 1) {
+          setGstPercentage(rates[0].toString());
+          setShowGSTOptions(false);
+        } else {
+          // Multiple rates available - show options
+          setShowGSTOptions(true);
+          // If current GST is not in available rates, clear it
+          if (!rates.includes(parseFloat(gstPercentage))) {
+            setGstPercentage('');
+          }
+        }
+      } else {
+        // Code not found in database
+        setAvailableGSTRates([]);
+        setCodeDescription('');
+        setShowGSTOptions(false);
+      }
+    } else {
+      setAvailableGSTRates([]);
+      setCodeDescription('');
+      setShowGSTOptions(false);
+    }
+  }, [hsnCode, sacCode, itemType]);
+
+  // Handler for Item Type change
+  const handleItemTypeChange = (newType: ItemType) => {
+    setItemType(newType);
+    setShowItemTypeDropdown(false);
+    // Clear codes and GST when switching type
+    setHsnCode('');
+    setSacCode('');
+    setGstPercentage('');
+    setCodeDescription('');
+    setAvailableGSTRates([]);
+    setShowGSTOptions(false);
+  };
+
+  // Handler for GST Change
+  const handleGstChange = (newGst: string) => {
+    setGstPercentage(newGst);
+  };
+
   const initializeCategories = async () => {
     try {
       setIsLoading(true);
@@ -116,11 +204,6 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
     }
   };
 
-  // Handler for GST Change
-  const handleGstChange = (newGst: string) => {
-    setGstPercentage(newGst);
-  };
-
   // --- Save Logic ---
   const handleUpdate = async () => {
     // 1. Validation
@@ -137,6 +220,19 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
       return;
     }
 
+    // Validate code based on item type
+    const currentCode = itemType === 'goods' ? hsnCode.trim() : sacCode.trim();
+    if (!currentCode) {
+      Alert.alert('Missing Info', `Please enter ${itemType === 'goods' ? 'HSN' : 'SAC'} code.`);
+      return;
+    }
+
+    // Validate GST percentage is selected
+    if (!gstPercentage) {
+      Alert.alert('Missing Info', 'Please select a GST percentage.');
+      return;
+    }
+
     // Double check if category belongs to current list (handle stale state)
     const selectedCat = categories.find(c => c.id === categoryId);
     if (categories.length > 0 && !selectedCat) {
@@ -145,18 +241,19 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
     }
 
     setIsSaving(true);
-    console.log("📝 Preparing to update item...", { name: itemName, categoryId });
+    console.log("📝 Preparing to update item...", { name: itemName, categoryId, itemType });
 
     try {
       // 2. Prepare Payload
+      // Note: Backend uses hsn_code for both HSN and SAC codes, and hsn_gst_percentage for GST
       const itemData: any = {
         name: itemName.trim(),
         sku: sku.trim() || undefined,
-        hsn_code: hsnCode.trim() || undefined,
+        hsn_code: itemType === 'goods' ? hsnCode.trim() : sacCode.trim(), // Use hsn_code field for both
         price: parseFloat(basePrice),
         mrp_price: parseFloat(basePrice), // MRP same as base price
         price_type: 'exclusive',
-        gst_percentage: gstPercentage === '' ? 0 : parseFloat(gstPercentage),
+        hsn_gst_percentage: parseFloat(gstPercentage), // Backend uses hsn_gst_percentage, not gst_percentage
         veg_nonveg: vegNonVeg || undefined,
         discount_percentage: parseFloat(additionalDiscount) || 0,
         category_ids: [categoryId],
@@ -308,19 +405,90 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
             />
           </View>
 
-          {/* 3. HSN Code */}
+          {/* 3. Item Type Selection (Goods or Service) */}
           <View style={styles.fieldContainer}>
-            <Text style={styles.label}>HSN Code (Optional)</Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="e.g. 1001"
-              placeholderTextColor="#999"
-              value={hsnCode}
-              onChangeText={setHsnCode}
-            />
+            <Text style={styles.label}>Item Type *</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setShowItemTypeDropdown(true)}
+            >
+              <Text style={styles.dropdownText}>
+                {itemType === 'goods' ? 'Goods (Physical Products)' : 'Service (Restaurant/Hotel Service)'}
+              </Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* 4. Category Selection */}
+          {/* 4. Conditional HSN/SAC Code Field */}
+          {itemType === 'goods' ? (
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>HSN Code *</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. 2106, 1001, 1905"
+                placeholderTextColor="#999"
+                value={hsnCode}
+                onChangeText={setHsnCode}
+                keyboardType="numeric"
+              />
+              {codeDescription ? (
+                <Text style={styles.helperText}>📦 {codeDescription}</Text>
+              ) : null}
+            </View>
+          ) : (
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>SAC Code *</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. 996331, 996334"
+                placeholderTextColor="#999"
+                value={sacCode}
+                onChangeText={setSacCode}
+                keyboardType="numeric"
+              />
+              {codeDescription ? (
+                <Text style={styles.helperText}>🍽️ {codeDescription}</Text>
+              ) : null}
+            </View>
+          )}
+
+          {/* 5. GST Percentage Selection (Based on Code) */}
+          {showGSTOptions && availableGSTRates.length > 0 && (
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Select GST Rate * (Multiple rates available)</Text>
+              <View style={styles.gstPercentageButtons}>
+                {availableGSTRates.map((rate) => (
+                  <TouchableOpacity
+                    key={rate}
+                    style={[
+                      styles.gstPercentageButton,
+                      gstPercentage === rate.toString() && styles.gstPercentageButtonActive,
+                    ]}
+                    onPress={() => handleGstChange(rate.toString())}>
+                    <Text
+                      style={[
+                        styles.gstPercentageText,
+                        gstPercentage === rate.toString() && styles.gstPercentageTextActive,
+                      ]}>
+                      {rate}%
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+          )}
+
+          {/* 6. Display GST (Auto-calculated or waiting for code) */}
+          {!showGSTOptions && gstPercentage && (
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>GST Rate (Auto-calculated)</Text>
+              <View style={styles.gstDisplayBox}>
+                <Text style={styles.gstDisplayText}>{gstPercentage}%</Text>
+              </View>
+            </View>
+          )}
+
+          {/* 7. Category Selection */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Category *</Text>
             <TouchableOpacity
@@ -334,7 +502,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
             </TouchableOpacity>
           </View>
 
-          {/* 5. SKU / Item Code */}
+          {/* 8. SKU / Item Code */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Item Code / SKU (Optional)</Text>
             <TextInput
@@ -346,7 +514,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
             />
           </View>
 
-          {/* 6. Veg / Non-Veg Icons */}
+          {/* 9. Veg / Non-Veg Icons */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Dietary Type</Text>
             <View style={styles.dietaryContainer}>
@@ -377,41 +545,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
             </View>
           </View>
 
-          {/* 7. GST Percentage Selection */}
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>GST Rate (%)</Text>
-            <View style={styles.gstPercentageButtons}>
-              {['0', '5', '8', '12', '18', '28'].map((percent) => (
-                <TouchableOpacity
-                  key={percent}
-                  style={[
-                    styles.gstPercentageButton,
-                    gstPercentage === percent && styles.gstPercentageButtonActive,
-                  ]}
-                  onPress={() => handleGstChange(percent)}>
-                  <Text
-                    style={[
-                      styles.gstPercentageText,
-                      gstPercentage === percent && styles.gstPercentageTextActive,
-                    ]}>
-                    {percent}%
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Custom GST Input */}
-            <TextInput
-              style={[styles.textInput, { marginTop: 8 }]}
-              placeholder="Or enter custom GST %"
-              placeholderTextColor="#999"
-              keyboardType="decimal-pad"
-              value={gstPercentage}
-              onChangeText={handleGstChange}
-            />
-          </View>
-
-          {/* 8. Base Price Field */}
+          {/* 10. Base Price Field */}
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>Base Price *</Text>
             <Text style={styles.helperText}>(Excluding GST)</Text>
@@ -428,7 +562,7 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
             </View>
           </View>
 
-          {/* 9. Discount */}
+          {/* 11. Discount */}
           <View style={[styles.fieldContainer, { marginBottom: 20 }]}>
             <Text style={styles.label}>Additional Discount % (Optional)</Text>
             <View style={styles.priceInputContainer}>
@@ -525,6 +659,75 @@ const EditItemScreen: React.FC<EditItemScreenProps> = ({ navigation, route }) =>
                     </Text>
                   </View>
                 )}
+              </ScrollView>
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Item Type Selection Modal */}
+      <Modal
+        visible={showItemTypeDropdown}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowItemTypeDropdown(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowItemTypeDropdown(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Select Item Type</Text>
+                <TouchableOpacity onPress={() => setShowItemTypeDropdown(false)} style={styles.modalCloseButton}>
+                  <Text style={styles.modalCloseText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView style={styles.modalScrollView}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    itemType === 'goods' && styles.modalItemSelected
+                  ]}
+                  onPress={() => handleItemTypeChange('goods')}
+                >
+                  <View>
+                    <Text style={[
+                      styles.modalItemText,
+                      itemType === 'goods' && styles.modalItemTextSelected
+                    ]}>
+                      📦 Goods (Physical Products)
+                    </Text>
+                    <Text style={styles.modalItemSubtext}>
+                      For physical products (FMCG, food items, etc.)
+                    </Text>
+                  </View>
+                  {itemType === 'goods' && <Text style={styles.checkMark}>✓</Text>}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.modalItem,
+                    itemType === 'service' && styles.modalItemSelected
+                  ]}
+                  onPress={() => handleItemTypeChange('service')}
+                >
+                  <View>
+                    <Text style={[
+                      styles.modalItemText,
+                      itemType === 'service' && styles.modalItemTextSelected
+                    ]}>
+                      🍽️ Service (Restaurant/Hotel)
+                    </Text>
+                    <Text style={styles.modalItemSubtext}>
+                      For restaurant services (dine-in, takeaway, catering)
+                    </Text>
+                  </View>
+                  {itemType === 'service' && <Text style={styles.checkMark}>✓</Text>}
+                </TouchableOpacity>
               </ScrollView>
             </View>
           </View>
@@ -918,11 +1121,34 @@ const styles = StyleSheet.create({
     color: '#C62828',
     fontWeight: '600',
   },
+  modalItemSubtext: {
+    fontSize: 13,
+    color: '#999999',
+    marginTop: 4,
+  },
   checkMark: {
     fontSize: 18,
     color: '#C62828',
     fontWeight: '700',
   },
+
+  // GST Display Box
+  gstDisplayBox: {
+    height: 48,
+    backgroundColor: '#E8F5E9',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gstDisplayText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2E7D32',
+  },
+
   emptyState: {
     padding: 32,
     alignItems: 'center',

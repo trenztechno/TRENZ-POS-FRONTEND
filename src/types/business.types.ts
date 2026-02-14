@@ -5,10 +5,11 @@ import type {
   PaymentMode,
   PriceType,
   VegNonVeg,
+  ItemType,
 } from './api.types';
 
 // Re-export common types
-export type { BillingMode, PaymentMode, PriceType, VegNonVeg };
+export type { BillingMode, PaymentMode, PriceType, VegNonVeg, ItemType };
 
 // Business setup types
 export interface BusinessInfo {
@@ -35,6 +36,9 @@ export interface MenuItem {
   price: number;
   mrp_price?: number;
   price_type?: PriceType;
+  item_type?: ItemType;         // 'goods' or 'service'
+  hsn_code?: string;            // HSN code for goods
+  sac_code?: string;            // SAC code for services
   gst_percentage?: number;
   veg_nonveg?: VegNonVeg;
   additional_discount?: number;
@@ -48,7 +52,6 @@ export interface MenuItem {
   description?: string;
   stock_quantity?: number;
   sku?: string;
-  hsn_code?: string;            // HSN code for GST
   barcode?: string;
   is_active?: boolean;
   sort_order?: number;

@@ -10,7 +10,7 @@ let db: any;
 export const initDatabase = async (): Promise<any> => {
   try {
     db = open({ name: DB_NAME });
-    
+
     console.log('Database opened successfully');
     await createTables();
     await runMigrations();
@@ -44,19 +44,41 @@ const columnExists = (tableName: string, columnName: string): boolean => {
   try {
     const result = db.execute(`PRAGMA table_info(${tableName})`);
     let columns: any[] = [];
-    
-    if (result && result.rows) {
-      if (result.rows._array) {
-        columns = result.rows._array;
-      } else if (Array.isArray(result.rows)) {
-        columns = result.rows;
+
+    // Handle different response formats from op-sqlite
+    if (result) {
+      // Check for rows property
+      if (result.rows) {
+        if (result.rows._array) {
+          columns = result.rows._array;
+        } else if (Array.isArray(result.rows)) {
+          columns = result.rows;
+        }
       }
-    } else if (Array.isArray(result)) {
-      columns = result;
+      // Check if result itself is an array
+      else if (Array.isArray(result)) {
+        columns = result;
+      }
+      // Check for metadata property (some versions of op-sqlite)
+      else if (result.metadata && Array.isArray(result.metadata)) {
+        columns = result.metadata;
+      }
     }
-    
-    return columns.some((col: any) => col && col.name === columnName);
+
+    // Debug log to help diagnose issues
+    if (columns.length === 0) {
+      console.log(`⚠️ No columns found for table ${tableName}, result structure:`, JSON.stringify(result).substring(0, 200));
+    }
+
+    const exists = columns.some((col: any) => {
+      // Handle different column info formats
+      const colName = col?.name || col?.Name || col?.[1]; // Some formats use index 1 for name
+      return colName === columnName;
+    });
+
+    return exists;
   } catch (error) {
+    console.warn(`⚠️ Error checking if column ${columnName} exists in ${tableName}:`, error);
     return false;
   }
 };
@@ -66,24 +88,39 @@ const addColumnIfNotExists = (tableName: string, columnName: string, columnDef: 
   try {
     // 1. Check if column exists first
     if (columnExists(tableName, columnName)) {
-      return; 
+      return;
     }
 
-    // 2. Try to add column
-    db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`);
-    console.log(`✅ Added column ${columnName} to ${tableName}`);
+    // 2. Try to add column - wrap in try-catch to handle race conditions
+    try {
+      db.execute(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnDef}`);
+      console.log(`✅ Added column ${columnName} to ${tableName}`);
+    } catch (alterError: any) {
+      const alterErrorMsg = String(alterError?.message || alterError || '').toLowerCase();
+
+      // Silently catch "duplicate column" errors that might occur due to race conditions
+      if (
+        alterErrorMsg.includes('duplicate column') ||
+        alterErrorMsg.includes('already exists')
+      ) {
+        return; // Column exists, migration successful
+      }
+
+      // Re-throw other errors
+      throw alterError;
+    }
 
   } catch (error: any) {
     const errorMsg = String(error?.message || error || '').toLowerCase();
-    
-    // 3. Silently catch "duplicate column" errors
+
+    // 3. Final catch for any duplicate column errors
     if (
-      errorMsg.includes('duplicate column') || 
+      errorMsg.includes('duplicate column') ||
       errorMsg.includes('already exists')
     ) {
       return; // It exists, so we are good.
     }
-    
+
     console.warn(`⚠️ Warning: Could not add column ${columnName} to ${tableName}:`, errorMsg);
   }
 };
@@ -464,7 +501,7 @@ export const dropAllTables = async () => {
   executeSql('DROP TABLE IF EXISTS business_settings;');
   executeSql('DROP TABLE IF EXISTS invoice_sequences;');
   executeSql('DROP TABLE IF EXISTS image_cache;');
-  
+
   console.log('All tables dropped');
 };
 
