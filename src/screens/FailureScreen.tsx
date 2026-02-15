@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, ScrollView } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import Svg, { Path, Circle } from 'react-native-svg';
 import AnimatedButton from '../components/AnimatedButton';
@@ -47,14 +47,19 @@ const SetupFailureScreen: React.FC<SetupFailureScreenProps> = ({ navigation, rou
 
   return (
     <View style={styles.container}>
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}>
         <View style={styles.iconContainer}>
           <ErrorIcon />
         </View>
@@ -72,6 +77,7 @@ const SetupFailureScreen: React.FC<SetupFailureScreenProps> = ({ navigation, rou
           />
         </View>
       </Animated.View>
+      </ScrollView>
     </View>
   );
 };
@@ -80,8 +86,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
+    paddingVertical: 40,
   },
   content: {
     alignItems: 'center',

@@ -7,6 +7,7 @@ import {
   TouchableWithoutFeedback,
   Animated,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -113,19 +114,23 @@ const SaveSuccessScreen: React.FC<SaveSuccessScreenProps> = ({ navigation, route
   }
 
   return (
-    <TouchableWithoutFeedback onPress={handleTap}>
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <TouchableWithoutFeedback onPress={handleTap}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
         >
+          <Animated.View
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
           {/* Icon */}
           <View style={styles.iconContainer}>
             <View style={styles.documentIconBackground}>
@@ -191,8 +196,9 @@ const SaveSuccessScreen: React.FC<SaveSuccessScreenProps> = ({ navigation, route
           {/* Bottom Text */}
           <Text style={styles.bottomText}>Tap anywhere to continue</Text>
         </Animated.View>
-      </View>
-    </TouchableWithoutFeedback>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </View>
   );
 };
 
@@ -200,8 +206,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingVertical: 40,
   },
   loadingContainer: {
     gap: 16,

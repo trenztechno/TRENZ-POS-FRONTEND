@@ -7,6 +7,7 @@ import {
   StatusBar,
   Animated,
   TextInput,
+  ScrollView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../types/business.types';
@@ -236,9 +237,14 @@ const styles = StyleSheet.create({
     letterSpacing: -0.31,
     lineHeight: 24,
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 20,
+    paddingBottom: 24,
+  },
+  content: {
     gap: 24,
   },
   card: {

@@ -40,6 +40,20 @@ const apiClient: AxiosInstance = axios.create({
   validateStatus: (status) => {
     return (status >= 200 && status < 300) || status === 304;
   },
+  // Don't transform FormData - let it pass through as-is
+  transformRequest: [
+    (data, headers) => {
+      // If data is FormData, return it as-is without transformation
+      if (data instanceof FormData) {
+        return data;
+      }
+      // For other data, stringify JSON
+      if (headers && headers['Content-Type'] === 'application/json') {
+        return JSON.stringify(data);
+      }
+      return data;
+    },
+  ],
   // Handle empty responses (204 No Content) properly
   transformResponse: [
     (data, headers) => {
@@ -179,9 +193,9 @@ export const API = {
       vendor: VendorProfile;
     }> => {
       const isFormData = data instanceof FormData;
-      // Don't set Content-Type for FormData - axios will set it with boundary automatically
+      // For FormData, set Content-Type to undefined so axios can set multipart/form-data with boundary
       const response = await apiClient.patch('/auth/profile', data, {
-        headers: isFormData ? {} : { 'Content-Type': 'application/json' },
+        headers: isFormData ? { 'Content-Type': undefined } : { 'Content-Type': 'application/json' },
       });
       return response.data;
     },
@@ -370,13 +384,22 @@ export const API = {
     // Upload image (multipart/form-data)
     uploadImage: async (id: string, imageUri: string): Promise<Item> => {
       const formData = new FormData();
+      
+      // Detect file type from URI
+      let type = 'image/jpeg';
+      if (imageUri.toLowerCase().endsWith('.png')) {
+        type = 'image/png';
+      } else if (imageUri.toLowerCase().endsWith('.webp')) {
+        type = 'image/webp';
+      }
+      
       formData.append('image', {
         uri: imageUri,
-        type: 'image/jpeg',
+        type: type,
         name: `${id}.jpg`,
       } as any);
 
-      // Explicitly set Content-Type to multipart/form-data to override default json adapter
+      // CRITICAL: In React Native, we MUST explicitly set Content-Type for FormData
       const response = await apiClient.patch(`/items/${id}/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -404,11 +427,13 @@ export const API = {
         }
       });
 
-      // Add category_ids as JSON string (required by backend)
+      // Add category_ids - for multipart/form-data, append each ID separately
+      // Django will automatically convert multiple fields with same name to an array
       if (data.category_ids && Array.isArray(data.category_ids)) {
-        const categoryIdsJson = JSON.stringify(data.category_ids);
-        console.log(`  Adding category_ids: ${categoryIdsJson}`);
-        formData.append('category_ids', categoryIdsJson);
+        data.category_ids.forEach((categoryId) => {
+          console.log(`  Adding category_id: ${categoryId}`);
+          formData.append('category_ids', categoryId);
+        });
       }
 
       // Add image file - React Native specific format
@@ -422,6 +447,8 @@ export const API = {
         type = 'image/png';
       } else if (uri.toLowerCase().endsWith('.jpg') || uri.toLowerCase().endsWith('.jpeg')) {
         type = 'image/jpeg';
+      } else if (uri.toLowerCase().endsWith('.webp')) {
+        type = 'image/webp';
       }
 
       // React Native FormData expects this exact structure
@@ -435,24 +462,12 @@ export const API = {
       console.log('  Image type:', type);
       console.log('🚀 Sending FormData to /items/');
 
-      // CRITICAL: For multipart/form-data in React Native:
-      // 1. Don't set Content-Type (axios will add it with boundary)
-      // 2. Don't transform the request
-      // 3. Use default transformResponse (not our custom JSON parser)
+      // CRITICAL: In React Native, we MUST explicitly set Content-Type for FormData
+      // (Unlike web browsers where it's automatic)
       const response = await apiClient.post('/items/', formData, {
         headers: {
-          // Remove the default Content-Type header - axios will set multipart/form-data with boundary
-          'Content-Type': undefined,
+          'Content-Type': 'multipart/form-data',
         },
-        transformRequest: [(data) => data], // Don't transform
-        transformResponse: [(data) => {
-          // Parse JSON response normally
-          try {
-            return JSON.parse(data);
-          } catch (e) {
-            return data;
-          }
-        }],
       });
 
       console.log('✅ Response received:', response.data);
@@ -474,9 +489,12 @@ export const API = {
         }
       });
 
-      // Add category_ids as JSON string (required by backend)
+      // Add category_ids - for multipart/form-data, append each ID separately
+      // Django will automatically convert multiple fields with same name to an array
       if (data.category_ids && Array.isArray(data.category_ids)) {
-        formData.append('category_ids', JSON.stringify(data.category_ids));
+        data.category_ids.forEach((categoryId) => {
+          formData.append('category_ids', categoryId);
+        });
       }
 
       // Add image file - React Native specific format
@@ -490,6 +508,8 @@ export const API = {
         type = 'image/png';
       } else if (uri.toLowerCase().endsWith('.jpg') || uri.toLowerCase().endsWith('.jpeg')) {
         type = 'image/jpeg';
+      } else if (uri.toLowerCase().endsWith('.webp')) {
+        type = 'image/webp';
       }
 
       formData.append('image', {
@@ -498,19 +518,12 @@ export const API = {
         name: filename,
       } as any);
 
-      // CRITICAL: Same config as createWithImage for multipart/form-data
+      // CRITICAL: In React Native, we MUST explicitly set Content-Type for FormData
+      // (Unlike web browsers where it's automatic)
       const response = await apiClient.patch(`/items/${id}/`, formData, {
         headers: {
-          'Content-Type': undefined,
+          'Content-Type': 'multipart/form-data',
         },
-        transformRequest: [(data) => data],
-        transformResponse: [(data) => {
-          try {
-            return JSON.parse(data);
-          } catch (e) {
-            return data;
-          }
-        }],
       });
 
       return response.data;

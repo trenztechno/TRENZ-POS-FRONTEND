@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Animated, ActivityIndicator, ScrollView } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import StoreIcon from '../assets/icons/store.svg';
 import AnimatedButton from '../components/AnimatedButton';
@@ -140,7 +140,12 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.contentContainer}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <View style={styles.contentContainer}>
         <Animated.View
           style={[
             styles.iconContainer,
@@ -211,6 +216,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
           variant="secondary"
         />
       </Animated.View>
+      </ScrollView>
     </View>
   );
 };
@@ -219,10 +225,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F2F2F2',
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingTop: 265,
     paddingHorizontal: 16,
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+    paddingBottom: 24,
   },
   loadingContainer: {
     justifyContent: 'center',

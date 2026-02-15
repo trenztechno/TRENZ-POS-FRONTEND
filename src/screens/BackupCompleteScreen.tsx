@@ -6,6 +6,7 @@ import {
   StatusBar,
   TouchableWithoutFeedback,
   Animated,
+  ScrollView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
@@ -81,19 +82,23 @@ const BackupCompleteScreen: React.FC<BackupCompleteScreenProps> = ({ navigation,
   };
 
   return (
-    <TouchableWithoutFeedback onPress={handleTap}>
-      <View style={styles.container}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
+    <View style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <TouchableWithoutFeedback onPress={handleTap}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          bounces={false}
         >
+          <Animated.View
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
           {/* Title */}
           <Text style={styles.title}>Backup Complete</Text>
 
@@ -117,8 +122,9 @@ const BackupCompleteScreen: React.FC<BackupCompleteScreenProps> = ({ navigation,
             <Text style={styles.infoMessage}>All data has been safely backed up</Text>
           </View>
         </Animated.View>
-      </View>
-    </TouchableWithoutFeedback>
+        </ScrollView>
+      </TouchableWithoutFeedback>
+    </View>
   );
 };
 
@@ -126,6 +132,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFFFFF',
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,

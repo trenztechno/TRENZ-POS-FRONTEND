@@ -17,6 +17,7 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import LockIcon from '../assets/icons/LockIcon.svg';
@@ -150,17 +151,23 @@ const AdminPinScreen: React.FC<AdminPinScreenProps> = ({ navigation }) => {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F2F2F2" />
 
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: fadeAnim,
-          },
-        ]}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Back Button */}
-        <TouchableOpacity
-          style={styles.backButton}
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+            },
+          ]}
+        >
+          {/* Back Button */}
+          <TouchableOpacity
+            style={styles.backButton}
           onPress={handleBack}
           activeOpacity={0.7}
         >
@@ -224,6 +231,7 @@ const AdminPinScreen: React.FC<AdminPinScreenProps> = ({ navigation }) => {
           </TouchableOpacity>
         </Animated.View>
       </Animated.View>
+      </ScrollView>
     </View>
   );
 };
@@ -237,9 +245,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 16,
+  },
+  content: {
+    paddingHorizontal: 0,
   },
   backButton: {
     paddingTop: 48,

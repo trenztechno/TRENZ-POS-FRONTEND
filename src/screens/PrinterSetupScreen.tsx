@@ -167,9 +167,7 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
 
 
   const paperSizes: { value: PaperSize; label: string }[] = [
-    { value: '58mm', label: '58 mm Receipt' },
     { value: '80mm', label: '80 mm Receipt' },
-    { value: 'A4', label: 'A4 Sheet' },
   ];
 
   const handleSelectDevice = (device: BluetoothDevice) => {
@@ -397,7 +395,7 @@ const PrinterSetupScreen: React.FC<PrinterSetupScreenProps> = ({ navigation }) =
           </View>
 
           {isLoadingDevices ? (
-            <View style={styles.loadingContainer}>
+            <View style={styles.devicesLoadingContainer}>
               <ActivityIndicator size="small" color="#C62828" />
               <Text style={styles.loadingText}>Loading devices...</Text>
             </View>
@@ -805,7 +803,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#C62828',
   },
-  loadingContainer: {
+  devicesLoadingContainer: {
     paddingVertical: 20,
     alignItems: 'center',
     gap: 8,

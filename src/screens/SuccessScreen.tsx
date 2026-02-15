@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {View, Text, StyleSheet, Animated, ActivityIndicator} from 'react-native';
+import {View, Text, StyleSheet, Animated, ActivityIndicator, ScrollView} from 'react-native';
 import {NativeStackScreenProps} from '@react-navigation/native-stack';
 import Svg, {Path, Circle} from 'react-native-svg';
 import AnimatedButton from '../components/AnimatedButton';
@@ -91,14 +91,19 @@ const SetupSuccessScreen: React.FC<SetupSuccessScreenProps> = ({navigation}) => 
 
   return (
     <View style={styles.container}>
-      <Animated.View
-        style={[
-          styles.content,
-          {
-            opacity: fadeAnim,
-            transform: [{scale: scaleAnim}],
-          },
-        ]}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+      >
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{scale: scaleAnim}],
+            },
+          ]}>
         <View style={styles.iconContainer}>
           <CheckIcon />
         </View>
@@ -136,6 +141,7 @@ const SetupSuccessScreen: React.FC<SetupSuccessScreenProps> = ({navigation}) => 
           />
         </View>
       </Animated.View>
+      </ScrollView>
     </View>
   );
 };
@@ -154,6 +160,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     fontSize: 16,
     color: '#666',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
   },
   content: {
     alignItems: 'center',

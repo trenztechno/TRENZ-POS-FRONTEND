@@ -7,6 +7,7 @@ import {
   Animated,
   StatusBar,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import BillingIcon from '../assets/icons/BillingIcon.svg';
@@ -84,7 +85,12 @@ const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View style={[styles.content, { opacity: fadeAnim }]}>
         {/* Title */}
         <View style={styles.titleContainer}>
           <Text style={styles.title}>Select Mode</Text>
@@ -144,6 +150,7 @@ const ModeSelectionScreen: React.FC<ModeSelectionScreenProps> = ({
           </TouchableOpacity>
         </View>
       </Animated.View>
+      </ScrollView>
     </View>
   );
 };
@@ -162,9 +169,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666666',
   },
-  content: {
+  scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  content: {
+    paddingHorizontal: 0,
   },
   titleContainer: {
     marginTop: 86,
